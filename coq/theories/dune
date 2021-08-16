@@ -1,11 +1,7 @@
-(library
-  (name minip4)
-  (public_name minip4))
-
 (coq.theory
  ; This determines the -R flag
  (name MiniP4)
- (package minip4)
+ (package coq-minip4)
  (synopsis "MiniP4 language for SIGCOMM'21 tutorial")
  (libraries coq.plugins.extraction))
 
