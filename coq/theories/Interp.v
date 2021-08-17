@@ -1,3 +1,4 @@
+Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Import List.ListNotations.
 Require Import MiniP4.Syntax.
@@ -56,9 +57,9 @@ Program Definition interp_uop (o: uop) (v: val) : option val :=
     end
   end.
 
-Fixpoint interp_expr (s: store) (e: expr) : option val :=
+Fixpoint interp_expr (s: state) (e: exp) : option val :=
   match e with
-  | Var x => find x s
+  | Var x => Env.find x s.(store)
   | Bits bs => Some (VBits bs)
   | Tuple exps =>
     option_map VTuple (all_some (List.map (interp_expr s) exps))
@@ -76,27 +77,50 @@ Fixpoint interp_expr (s: store) (e: expr) : option val :=
     end
   end.
 
-Program Fixpoint interp_cmd (s: store) (c: cmd) : option store :=
-  match c with
-  | Assign x e => option_map (fun v => bind x v s) (interp_expr s e)
-  | Block cs => List.fold_right
-                 (fun c s => match s with
-                          | Some s => interp_cmd s c
-                          | None => None
-                          end)
-                 (Some s)
-                 cs
-  | If e c1 c2 =>
-    match interp_expr s e with
-    | Some (VBits [true]) =>
-      interp_cmd s c1
-    | Some _ =>
-      interp_cmd s c2
-    | None =>
-      None
+Definition set_store (s: state) (e: Env.t name val) : state :=
+  {| store := e;
+     pkt := s.(pkt);
+     acts := s.(acts);
+     tables := s.(tables) |}.
+
+Definition interp_table (s: state) (tbl: table) (rules: list rule) : option state.
+Admitted.
+
+Program Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
+  match fuel with
+  | 0 => None
+  | S fuel =>
+    match c with
+    | Assign x e =>
+      option_map (fun v => set_store s (Env.bind x v s.(store)))
+                 (interp_expr s e)
+    | Block cs => List.fold_right
+                   (fun c s => match s with
+                            | Some s => interp_cmd fuel s c
+                            | None => None
+                            end)
+                   (Some s)
+                   cs
+    | If e c1 c2 =>
+      match interp_expr s e with
+      | Some (VBits [true]) =>
+        interp_cmd fuel s c1
+      | Some _ =>
+        interp_cmd fuel s c2
+      | None =>
+        None
+      end
+    | Extr x => _
+    | Emit x => _
+    | Apply t =>
+      match Env.find t s.(tables) with
+      | Some (tbl, rules) => interp_table s tbl rules
+      | None => None
+      end
+    | Call a =>
+      match Env.find a s.(acts) with
+      | Some act => interp_cmd fuel s act.(body)
+      | None => None
+      end
     end
-  | Extr x => _
-  | Emit x => _
-  | Apply t => _
-  | Call a => _
   end.

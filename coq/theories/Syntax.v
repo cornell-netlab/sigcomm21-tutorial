@@ -1,10 +1,10 @@
-Require Import Coq.Lists.List.
-Import List.ListNotations.
-
+Require Import Coq.Classes.EquivDec.
+Require Import PeanoNat.
+Require MiniP4.Env.
 Definition bitstring: Set := list bool.
 
 Definition name: Set := nat.
-Definition name_eq_dec: forall x y: nat, {x = y} + {x <> y} := PeanoNat.Nat.eq_dec.
+Instance name_eq_dec: EqDec name eq := Nat.eq_dec.
 
 Inductive uop: Set :=
 | Hash
@@ -14,18 +14,18 @@ Inductive binop: Set :=
 | Eq
 | Neq.
 
-Inductive expr: Set :=
+Inductive exp: Set :=
 | Var (x: name)
 | Bits (bs: bitstring)
-| Tuple (exps: list expr)
-| Proj (e: expr) (n: nat)
-| BinOp (o: binop) (e1 e2: expr)
-| UOp (o: uop) (e: expr).
+| Tuple (exps: list exp)
+| Proj (e: exp) (n: nat)
+| BinOp (o: binop) (e1 e2: exp)
+| UOp (o: uop) (e: exp).
 
 Inductive cmd: Set :=
-| Assign (x: name) (e: expr)
+| Assign (x: name) (e: exp)
 | Block (cs: list cmd)
-| If (e: expr) (c1 c2: cmd)
+| If (e: exp) (c1 c2: cmd)
 | Extr (x: name)
 | Emit (x: name)
 | Apply (t: name)
@@ -37,9 +37,9 @@ Inductive typ: Set :=
 | Prod (ts: list typ).
 
 Inductive defn: Set :=
-| VarDecl (t: typ) (x: name) (e: expr)
+| VarDecl (t: typ) (x: name) (e: exp)
 | Action (a: name) (c: cmd)
-| Table (t: name) (keys: expr) (actions: list name).
+| Table (t: name) (keys: exp) (actions: list name).
 
 Definition prog: Set :=
   list defn * cmd.
@@ -48,15 +48,20 @@ Inductive val: Set :=
 | VBits (bs: bitstring)
 | VTuple (vs: list val).
 
-Definition store := list (name * val).
-Definition emp: store := nil.
-Definition bind (n: name) (v: val) (s: store) : store :=
-  (n, v) :: s.
-Fixpoint find (n: name) (s: store) : option val :=
-  match s with
-  | [] => None
-  | (k, v) :: s =>
-    if name_eq_dec n k
-    then Some v
-    else find n s
-  end.
+Record action :=
+  { body: cmd }.
+
+Record rule :=
+  { rule_match: exp;
+    rule_action: name }.
+
+Record table :=
+  { table_key: exp;
+    table_acts: list action;
+    table_rules: list rule }.
+
+Record state :=
+  { store: Env.t name val;
+    pkt: list bool;
+    acts: Env.t name action;
+    tables: Env.t name (table * list rule) }.

@@ -3,5 +3,6 @@
 
 theories/Syntax.v
 theories/Interp.v
+theories/Env.v
 
 extraction/Extract.v
