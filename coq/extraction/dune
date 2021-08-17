@@ -1,8 +1,3 @@
-(coq.extraction
-  (prelude Extract)
-  (extracted_modules Syntax
-                     Datatypes)
-  (theories MiniP4))
 (library
   (name coq_minip4)
   (public_name coq-minip4))

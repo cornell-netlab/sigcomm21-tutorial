@@ -1,7 +1,0 @@
-(coq.theory
- ; This determines the -R flag
- (name MiniP4)
- (package coq-minip4)
- (synopsis "MiniP4 language for SIGCOMM'21 tutorial")
- (libraries coq.plugins.extraction))
-

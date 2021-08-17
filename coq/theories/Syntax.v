@@ -40,3 +40,8 @@ Inductive defn: Set :=
 Definition prog: Set :=
   list defn * cmd.
 
+
+Goal 2=2.
+idtac "hello".
+exact (eq_refl 2).
+Qed.

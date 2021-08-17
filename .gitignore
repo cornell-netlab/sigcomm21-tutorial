@@ -1,1 +1,9 @@
 _build
+*.glob
+*.aux
+*.vo*
+coq/CoqMakefile
+coq/CoqMakefile.conf
+coq/.CoqMakefile.d
+coq/extraction/*.ml
+coq/extraction/*.mli
