@@ -46,6 +46,7 @@ Definition prog: Set :=
 
 Inductive val: Set :=
 | VBits (bs: bitstring)
+| VBool (b: bool)
 | VTuple (vs: list val).
 
 Record action :=
@@ -57,11 +58,11 @@ Record rule :=
 
 Record table :=
   { table_key: exp;
-    table_acts: list action;
-    table_rules: list rule }.
+    table_acts: list name; }.
 
 Record state :=
   { store: Env.t name val;
+    type_env: Env.t name typ;
     pkt: list bool;
     acts: Env.t name action;
     tables: Env.t name (table * list rule) }.
