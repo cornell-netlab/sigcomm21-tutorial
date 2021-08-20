@@ -1,10 +1,13 @@
 Require Import Coq.Classes.EquivDec.
+Require Export Coq.Strings.String.
 Require Import PeanoNat.
 Require MiniP4.Env.
+Require Import Coq.Lists.List.
+Export ListNotations.
 Definition bitstring: Set := list bool.
 
-Definition name: Set := nat.
-Instance name_eq_dec: EqDec name eq := Nat.eq_dec.
+Definition name: Set := string.
+Instance name_eq_dec: EqDec name eq := string_dec.
 
 Inductive uop: Set :=
 | Hash
@@ -16,6 +19,7 @@ Inductive binop: Set :=
 
 Inductive exp: Set :=
 | Var (x: name)
+| EBool (b: bool)
 | Bits (bs: bitstring)
 | Tuple (exps: list exp)
 | Proj (e: exp) (n: nat)
