@@ -1,6 +1,8 @@
 Require Import Coq.Lists.List.
 Require Import MiniP4.Syntax.
 Require MiniP4.Env.
+Open Scope string_scope.
+Open Scope list_scope.
 
 Definition varset := list name.
 
@@ -110,3 +112,8 @@ Fixpoint dead_store_elim
   | Call a params =>
     (union (union_all (List.map fv params)) live, c)
   end.
+
+Eval compute in dead_store_elim [] [] (Block [Assign "x" (Bits [true])]).
+Eval compute in dead_store_elim [] [] (Block [Assign "x" (Bits [true]); Assign "x" (Var "x")]).
+Eval compute in dead_store_elim [] ["x"; "y"] (Block [Assign "x" (Bits [true]); Assign "x" (Var "x")]).
+Eval compute in dead_store_elim [] ["x"; "y"] (Block [Assign "x" (Bits [true]); Assign "x" (Var "y")]).
