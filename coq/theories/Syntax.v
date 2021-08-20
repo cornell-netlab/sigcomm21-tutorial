@@ -33,7 +33,7 @@ Inductive cmd: Set :=
 | Extr (x: name)
 | Emit (x: name)
 | Apply (t: name)
-| Call (a: name).
+| Call (a: name) (args: list exp).
 
 Inductive typ: Set :=
 | Bit (n: nat)
@@ -42,7 +42,7 @@ Inductive typ: Set :=
 
 Inductive defn: Set :=
 | VarDecl (t: typ) (x: name) (e: exp)
-| Action (a: name) (c: cmd)
+| Action (a: name) (params: list (name * typ)) (c: cmd)
 | Table (t: name) (keys: exp) (actions: list name).
 
 Definition prog: Set :=
@@ -54,11 +54,13 @@ Inductive val: Set :=
 | VTuple (vs: list val).
 
 Record action :=
-  { body: cmd }.
+  { params: list (name * typ);
+    body: cmd }.
 
 Record rule :=
   { rule_match: exp;
-    rule_action: name }.
+    rule_action: name;
+    rule_args: list val }.
 
 Record table :=
   { table_key: exp;

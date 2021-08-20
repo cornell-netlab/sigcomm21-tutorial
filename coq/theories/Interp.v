@@ -97,6 +97,7 @@ Program Definition interp_uop (o: uop) (v: val) : option val :=
 Fixpoint interp_exp (s: state) (e: exp) : option val :=
   match e with
   | Var x => Env.find x s.(store)
+  | EBool b => Some (VBool b)
   | Bits bs => Some (VBits bs)
   | Tuple exps =>
     option_map VTuple (all_some (List.map (interp_exp s) exps))
@@ -204,15 +205,24 @@ Definition interp_emit (s: state) (v: val) : option state :=
   let bs := emit v in
   Some (set_pkt s bs).
 
-Fixpoint find_rule (s: state) (k: val) (rules: list rule) : option name :=
+Fixpoint find_rule (s: state) (k: val) (rules: list rule) : option rule :=
   match rules with
   | r :: rules =>
     match interp_exp s r.(rule_match) with
-    | Some v => if k == v then Some r.(rule_action) else find_rule s k rules
+    | Some v => if k == v then Some r else find_rule s k rules
     | None => None
     end
   | [] => None
   end.
+
+Definition bind_arg (s: state) : (name * typ) * val -> state :=
+  fun '((x, _), v) =>
+    set_store s (Env.bind x v s.(store)).
+
+Definition bind_args (ps: list (name * typ)) (args: list val) (s: state) : option state :=
+  if List.length ps == List.length args
+  then Some (List.fold_left bind_arg (List.combine ps args) s)
+  else None.
 
 Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
   match fuel with
@@ -253,16 +263,23 @@ Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
       | Some (tbl, rules) => interp_table fuel s tbl rules
       | None => None
       end
-    | Call a =>
-      interp_call fuel s a
+    | Call a args =>
+      match all_some (List.map (interp_exp s) args) with
+      | Some arg_vals => interp_call fuel s a arg_vals
+      | None => None
+      end
     end
   end
-with interp_call (fuel: nat) (s: state) (a: name) : option state :=
+with interp_call (fuel: nat) (s: state) (a: name) (args: list val) : option state :=
        match fuel with
        | 0 => None
        | S fuel =>
          match Env.find a s.(acts) with
-         | Some act => interp_cmd fuel s act.(body)
+         | Some act =>
+           match bind_args act.(params) args s with
+           | Some s => interp_cmd fuel s act.(body)
+           | None => None
+           end
          | None => None
          end
        end
@@ -273,7 +290,7 @@ with interp_table (fuel: nat) (s: state) (tbl: table) (rules: list rule) : optio
          match interp_exp s tbl.(table_key) with
          | Some key =>
            match find_rule s key rules with
-           | Some act => interp_call fuel s act
+           | Some r => interp_call fuel s r.(rule_action) r.(rule_args)
            | None => None
            end
          | None => None
@@ -288,8 +305,8 @@ Program Fixpoint interp_defn (fuel: nat) (s: state) (d: defn) : option state :=
                     (set_store s (Env.bind x v s.(store)))
                     (Env.bind x t s.(type_env)))
                (interp_exp s e)
-  | Action a c =>
-    Some (set_acts s (Env.bind a {| body := c |} s.(acts)))
+  | Action a params c =>
+    Some (set_acts s (Env.bind a {| body := c; params := params |} s.(acts)))
   | Table t keys actions =>
     Some (set_tables s (Env.bind t ({| table_key:=keys; table_acts := actions |}, []) s.(tables)))
   end.
