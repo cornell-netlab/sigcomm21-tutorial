@@ -1,8 +1,8 @@
 open Coq_minip4.Syntax
 
-let print (e: expr) : unit =
+let print (e: exp) : unit =
   match e with
-  | NumLit _ -> failwith "unimplemented"
-  | BinOp (_, _, _) -> failwith "unimplemented"
+  | EBool(Coq_true) -> Printf.printf "true"
+  | EBool(Coq_false) -> Printf.printf "false"
   | _ -> failwith "unimplemented"
 
