@@ -19,4 +19,3 @@ Section Env.
       else find k s
     end.
 End Env.
-Check find.

@@ -1,0 +1,6 @@
+(executable
+  (public_name minip4)
+  (package minip4)
+  (name main)
+  (modules main)
+  (libraries coq-minip4 minip4))
