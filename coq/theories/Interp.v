@@ -6,6 +6,7 @@ Require Import Coq.NArith.NArith.
 Require Import MiniP4.Syntax.
 
 Axiom hash: list bool -> list bool.
+Extract Inlined Constant hash => "(fun x -> x)".
 
 Fixpoint all_some {A: Type} (l: list (option A)) : option (list A) :=
   match l with
