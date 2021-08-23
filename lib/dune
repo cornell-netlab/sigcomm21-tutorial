@@ -1,4 +1,4 @@
 (library
   (public_name minip4)
   (name minip4)
-  (libraries coq-minip4))
+  (libraries coq-minip4 pp))
