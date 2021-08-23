@@ -3,4 +3,4 @@
   (package minip4)
   (name main)
   (modules main)
-  (libraries coq-minip4 minip4))
+  (libraries coq-minip4 minip4 pp))
