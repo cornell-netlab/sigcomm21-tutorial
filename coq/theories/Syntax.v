@@ -71,4 +71,5 @@ Record state :=
     type_env: Env.t name typ;
     pkt: list bool;
     acts: Env.t name action;
-    tables: Env.t name (table * list rule) }.
+    tables: Env.t name table;
+    rules: Env.t name (list rule) }.

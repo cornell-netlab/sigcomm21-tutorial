@@ -3,13 +3,13 @@ open Minip4
 open Syntax
 open Interp
 
-
 let init_state = 
   { store = [];
     type_env = [];
     pkt = [];
     acts = [];
-    tables = []; }
+    tables = [];
+    rules = []; }
 
 let defns = []
 
