@@ -10,6 +10,7 @@ Require Coq.extraction.ExtrOcamlNativeString.
 
 Require MiniP4.Syntax.
 Require MiniP4.Interp.
+Extract Inlined Constant MiniP4.Interp.hash => "(fun x -> x)".
 
 Cd "extraction".
 Separate Extraction MiniP4.Syntax.
