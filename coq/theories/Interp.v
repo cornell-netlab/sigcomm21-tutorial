@@ -221,9 +221,11 @@ Fixpoint find_rule (s: state) (k: val) (rules: list rule) : option rule :=
   | [] => None
   end.
 
+Definition assign (s: state) (x: name) (v: val) : state :=
+  set_store s (Env.bind x v s.(store)).
+
 Definition bind_arg (s: state) : (name * typ) * val -> state :=
-  fun '((x, _), v) =>
-    set_store s (Env.bind x v s.(store)).
+  fun '((x, _), v) => assign s x v.
 
 Definition bind_args (ps: list (name * typ)) (args: list val) (s: state) : option state :=
   if List.length ps == List.length args
@@ -236,8 +238,7 @@ Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
   | S fuel =>
     match c with
     | Assign x e =>
-      option_map (fun v => set_store s (Env.bind x v s.(store)))
-                 (interp_exp s e)
+      option_map (assign s x) (interp_exp s e)
     | Block cs => List.fold_right
                    (fun c s => match s with
                             | Some s => interp_cmd fuel s c
@@ -308,7 +309,7 @@ Program Fixpoint interp_defn (fuel: nat) (s: state) (d: defn) : option state :=
   | VarDecl t x e =>
     option_map (fun v =>
                   set_type_env
-                    (set_store s (Env.bind x v s.(store)))
+                    (assign s x v)
                     (Env.bind x t s.(type_env)))
                (interp_exp s e)
   | Action a params c =>
