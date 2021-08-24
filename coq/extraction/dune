@@ -1,5 +1,5 @@
 (library
   (name coq_minip4)
   (public_name coq-minip4)
-  (flags (:standard -w -3-33-39)))
+  (flags (:standard -w -33-39)))
 
