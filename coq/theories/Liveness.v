@@ -31,14 +31,15 @@ Fixpoint fv (e: exp) : varset :=
  | Var x => mk_varset [x]
  | EBool b => emp
  | Bits bs => emp
- | Tuple exps => union_all (List.map fv exps)
- | Proj e n => fv e
+ | Tuple e1 e2 => union (fv e1) (fv e2)
+ | Proj1 e => fv e
+ | Proj2 e => fv e
+ | Tt => emp
  | BinOp o e1 e2 => union (fv e1) (fv e2)
  | UOp o e => fv e
  end.
 
 Import ListNotations.
-Eval compute in (List.fold_right (fun x l => l ++ [x]) [] [1;2;3]).
 
 Fixpoint act_live (live: varset) (act: action) : varset :=
   match act with

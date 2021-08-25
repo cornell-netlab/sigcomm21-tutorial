@@ -28,7 +28,12 @@ Program Fixpoint val_eqdec (x y: val) : {x = y} + {x <> y} :=
   match x, y with
   | VBits xs, VBits ys => if xs == ys then in_left else in_right
   | VBool x, VBool y => if x == y then in_left else in_right
-  | VTuple xs, VTuple ys => if list_eq_dec val_eqdec xs ys then in_left else in_right
+  | VPair x1 x2, VPair y1 y2 => if val_eqdec x1 y1
+                               then if val_eqdec x2 y2
+                                    then in_left
+                                    else in_right
+                               else in_right
+  | VUnit, VUnit => in_left
   | _, _ => in_right
   end.
 Next Obligation.
@@ -40,8 +45,9 @@ Qed.
 Next Obligation.
   intro; subst.
   destruct y.
-  - eapply H1; auto.
+  - eapply H2; auto.
   - eapply H; auto.
+  - eapply H1; auto.
   - eapply H0; auto.
 Qed.
 Solve All Obligations with (cbn; intros; intuition congruence).
@@ -83,13 +89,11 @@ Program Definition interp_uop (o: uop) (v: val) : option val :=
     end
   | Sum =>
     match v with
-    | VTuple vs =>
-      Some (VBits (to_list (List.fold_right (fun v acc =>
-                         match v with
-                         | VBits l => (to_num l + acc)%N
-                         | _ => acc
-                         end)
-                      0%N vs)))
+    | VPair v1 v2 =>
+      Some (VBits (match v1, v2 with
+                   | VBits b1, VBits b2 => to_list (to_num b1 + to_num b2)%N
+                   | _, _ => to_list 0%N
+                   end))
     | _ => None
     end
   end.
@@ -99,13 +103,23 @@ Fixpoint interp_exp (s: state) (e: exp) : option val :=
   | Var x => Env.find x s.(store)
   | EBool b => Some (VBool b)
   | Bits bs => Some (VBits bs)
-  | Tuple exps =>
-    option_map VTuple (all_some (List.map (interp_exp s) exps))
-  | Proj e n =>
+  | Tuple exp1 exp2 =>
+    match interp_exp s exp1, interp_exp s exp2 with
+    | Some v1, Some v2 =>
+      Some (VPair v1 v2)
+    | _, _ => None
+    end
+  | Proj1 e =>
     match interp_exp s e with
-    | Some (VTuple vs) => nth_error vs n
+    | Some (VPair v1 _) => Some v1
     | _ => None
     end
+  | Proj2 e =>
+    match interp_exp s e with
+    | Some (VPair _ v2) => Some v2
+    | _ => None
+    end
+  | Tt => Some VUnit
   | BinOp o e1 e2 =>
     option_map (interp_binop o) (both_some (interp_exp s e1) (interp_exp s e2))
   | UOp o e =>
@@ -147,23 +161,17 @@ Fixpoint extr (pk: list bool) (t: typ) : option (val * list bool) :=
     | [b] => Some (VBool b, pk)
     | _ => None
     end
-  | Prod ts =>
-    match List.fold_left (fun acc t =>
-                            match acc with
-                            | Some (vs, pk) =>
-                              match extr pk t with
-                              | Some (v, pk) =>
-                                Some (vs ++ [v], pk)
-                              | None => None
-                              end
-                            | None => None
-                            end) ts (Some ([], pk))
-    with
-    | Some (vs, pk) =>
-      Some (VTuple vs, pk)
-    | None =>
-      None
+  | Prod t1 t2 =>
+    match extr pk t1 with
+    | Some (v1, pk) =>
+      match extr pk t2 with
+      | Some (v2, pk) =>
+        Some (VPair v1 v2, pk)
+      | None => None
+      end
+    | None => None
     end
+  | Unit => Some (VUnit, pk)
   end.
 
 Definition interp_extr (s: state) (x: name) (t: typ) : option state :=
@@ -178,7 +186,9 @@ Fixpoint emit (v: val) : list bool :=
   match v with
   | VBits bs => bs
   | VBool b => [b]
-  | VTuple vs => List.fold_left (fun bs v => bs ++ emit v) vs []
+  | VPair v1 v2 =>
+    emit v1 ++ emit v2
+  | VUnit => []
   end.
 
 Definition interp_emit (s: state) (v: val) : option state :=

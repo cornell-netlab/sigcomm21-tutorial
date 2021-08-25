@@ -21,8 +21,10 @@ Inductive exp: Set :=
 | Var (x: name)
 | EBool (b: bool)
 | Bits (bs: bitstring)
-| Tuple (exps: list exp)
-| Proj (e: exp) (n: nat)
+| Tuple (exp1 exp2: exp)
+| Tt (* unit *)
+| Proj1 (e: exp)
+| Proj2 (e: exp)
 | BinOp (o: binop) (e1 e2: exp)
 | UOp (o: uop) (e: exp).
 
@@ -38,7 +40,8 @@ Inductive cmd: Set :=
 Inductive typ: Set :=
 | Bit (n: nat)
 | Bool
-| Prod (ts: list typ).
+| Unit
+| Prod (t1 t2: typ).
 
 Inductive action :=
 | ActAssign (x: name) (e: exp)
@@ -55,7 +58,8 @@ Definition prog: Set :=
 Inductive val: Set :=
 | VBits (bs: bitstring)
 | VBool (b: bool)
-| VTuple (vs: list val).
+| VUnit
+| VPair (v1 v2: val).
 
 Record rule :=
   { rule_match: exp;

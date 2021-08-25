@@ -36,14 +36,17 @@ let rec format_exp (e: exp) : 'a Pp.t =
      else text "false"
   | Bits b ->
      format_bitstring b
-  | Tuple es ->
+  | Tuple (e1, e2) ->
      text "("
-     ++ concat_map es
-          ~f:format_exp
-          ~sep:(text ", ")
+     ++ format_exp e1
+     ++ text ", "
+     ++ format_exp e2
      ++ text ")"
-  | Proj (e, n) ->
-     format_exp e ++ text "." ++ format_int n
+  | Tt -> text "tt"
+  | Proj1 e ->
+     format_exp e ++ text ".1"
+  | Proj2 e ->
+     format_exp e ++ text ".2"
   | BinOp (b, e1, e2) ->
      format_exp e1
      ++ format_binop b

@@ -87,4 +87,13 @@ Section Env.
     rewrite find_filter_neq; eauto.
   Qed.
 
+  Lemma find_bind_eq:
+    forall x v s,
+      Env.find x (Env.bind x v s) = Some v.
+  Proof.
+    intros.
+    simpl.
+    destruct (equiv_dec x x); congruence.
+  Qed.
+
 End Env.
