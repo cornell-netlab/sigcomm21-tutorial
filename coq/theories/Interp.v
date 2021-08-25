@@ -195,13 +195,12 @@ Definition interp_emit (s: state) (v: val) : option state :=
   let bs := emit v in
   Some (set_pkt s bs).
 
-Fixpoint find_rule (s: state) (k: val) (rules: list rule) : option rule :=
+Fixpoint find_rule (k: val) (rules: list rule) : option rule :=
   match rules with
   | r :: rules =>
-    match interp_exp s r.(rule_match) with
-    | Some v => if k == v then Some r else find_rule s k rules
-    | None => None
-    end
+    if k == r.(rule_match)
+    then Some r
+    else find_rule k rules
   | [] => None
   end.
 
@@ -232,7 +231,7 @@ Fixpoint interp_act (s: state) (a: action) : option state :=
 Definition interp_table (s: state) (tbl: table) (rules: list rule) : option state :=
   match interp_exp s tbl.(table_key) with
   | Some key =>
-    match find_rule s key rules with
+    match find_rule key rules with
     | Some r =>
       interp_act s (List.nth r.(rule_action) tbl.(table_acts) ActNop)
     | None => None

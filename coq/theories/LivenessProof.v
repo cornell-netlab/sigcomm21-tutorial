@@ -294,6 +294,113 @@ Proof.
   tauto.
 Qed.
 
+Lemma in_add_old:
+  forall a b x,
+    In a b ->
+    In a (add x b).
+Proof.
+  intros.
+  unfold add.
+  destruct (check x b); eauto with datatypes.
+Qed.
+
+Lemma in_add:
+  forall a b,
+    In a (add a b).
+Proof.
+  intros.
+  unfold add.
+  destruct (check a b) eqn:?.
+  - apply check_in; auto.
+  - eauto with datatypes.
+Qed.
+
+Lemma in_union:
+  forall b x a,
+    In x (union a b) <->
+    In x a \/ In x b.
+Proof.
+  induction b; intros; simpl in *.
+  - tauto.
+  - split; intros.
+    + eapply IHb in H.
+      intuition.
+      destruct (name_eq_dec x a); eauto.
+      unfold add in *.
+      destruct (check a a0) eqn:?; subst.
+      * eauto using check_in.
+      * destruct H0; eauto.
+    + intuition.
+      * apply IHb.
+        eauto using in_add_old.
+      * apply IHb.
+        left.
+        subst.
+        eapply in_add.
+      * apply IHb; tauto.
+Qed.
+
+Lemma fold_left_union_inv:
+  forall sets init x,
+    In x (fold_left union sets init) ->
+    (exists s, In s sets /\ In x s) \/ In x init.
+Proof.
+  induction sets.
+  - simpl.
+    eauto.
+  - intros.
+    simpl in H.
+    eapply IHsets in H.
+    destruct H as [[? [? ?]] | ?].
+    + left.
+      exists x0.
+      eauto with datatypes.
+    + eapply in_union in H.
+      intuition.
+      left.
+      exists a.
+      eauto with datatypes.
+Qed.
+
+Lemma fold_left_union_in:
+  forall sets init x,
+    (exists s, In s sets /\ In x s) \/ In x init ->
+    In x (fold_left union sets init).
+Proof.
+  induction sets.
+  - intros.
+    firstorder.
+  - intros.
+    simpl in *.
+    destruct H.
+    + destruct H.
+      intuition.
+      * subst x0.
+        apply IHsets.
+        right.
+        apply in_union.
+        tauto.
+      * apply IHsets.
+        eauto using in_union with datatypes.
+    + apply IHsets.
+      right.
+      eapply in_union; eauto.
+Qed.
+
+Lemma agree_union_all:
+  forall sets s e1 e2,
+    agree (union_all sets) e1 e2 ->
+    In s sets ->
+    agree s e1 e2.
+Proof.
+  unfold union_all, agree.
+  intros.
+  rewrite !Forall_forall in *.
+  intros.
+  eapply H.
+  eapply fold_left_union_in; eauto.
+Qed.
+
 Lemma dse_exp_corr:
   forall s s' e,
     agree (fv e) s.(store) s'.(store) ->
@@ -366,6 +473,58 @@ Proof.
   apply agree_bind; auto.
 Qed.
 
+Lemma agree_add:
+  forall x s e1 e2,
+    agree (add x s) e1 e2 ->
+    agree s e1 e2.
+Proof.
+  unfold add.
+  intros.
+  destruct (check x s); eauto.
+  eapply Forall_forall.
+  intros.
+  eapply Forall_forall in H; eauto with datatypes.
+Qed.
+
+Lemma dse_act_corr:
+  forall act live live',
+    act_live live act = live' ->
+    forall s1 s1',
+      interp_act s1 act = Some s1' ->
+      forall s2,
+        agree live' s1.(store) s2.(store) ->
+        s1.(pkt) = s2.(pkt) ->
+        exists s2',
+          interp_act s2 act = Some s2' /\
+          agree live s1'.(store) s2'.(store) /\
+          s1'.(pkt) = s2'.(pkt).
+Proof.
+  induction act; simpl; intros.
+  - subst live'.
+    pose proof (agree_union_r _ _ _ _ H1).
+    eapply dse_exp_corr with (s:=s1) (s':=s2) in H.
+    erewrite H in *.
+    destruct (interp_exp s2 e) eqn:?; simpl in * |-; try congruence.
+    simpl.
+    inversion H0; subst.
+    eexists.
+    intuition eauto.
+    eapply agree_assign.
+    eapply agree_union_l; eauto.
+  - destruct (interp_act s1 act1) eqn:H'; try congruence.
+    remember (act_live live act2) as live2.
+    pose proof (H'' := H').
+    eapply IHact1 in H''; eauto.
+    destruct H''.
+    intuition.
+    rewrite H4.
+    symmetry in H.
+    eapply IHact2 in H0; eauto.
+    congruence.
+  - exists s2.
+    intuition congruence.
+Qed.
+
 Lemma dse_cmd_corr:
   forall c live live' c' ds,
     dead_store_elim ds.(tables) live c = (live', c') ->
@@ -424,10 +583,78 @@ Proof.
     exists x0.
     rewrite H3.
     eauto.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-Admitted.
+  - destruct (dead_store_elim _ _ c1) eqn:?.
+    destruct (dead_store_elim _ _ c2) eqn:?.
+    inversion H.
+    subst; clear H.
+    destruct n; simpl in *; try congruence.
+    assert (agree (fv e) (store s1) (store s2))
+      by (eapply agree_union_all; eauto with datatypes).
+    erewrite dse_exp_corr in * by eauto.
+    destruct (interp_exp s2 e); try congruence.
+    destruct (val_eq_dec v1 (VBits [true])).
+    + cbv in e0.
+      subst v1.
+      eapply IHc1 in H0; eauto.
+      eapply agree_union_all; eauto with datatypes.
+    + destruct v1 as [ [ | [ | ] [ | ] ]| | | ];
+        simpl in *;
+        solve [eapply IHc2 in H0; eauto;
+               eapply agree_union_all; eauto with datatypes
+              |congruence].
+  - inversion H; subst.
+    destruct n; simpl in *; try congruence.
+    destruct (Env.find x (type_env ds)); try congruence.
+    unfold interp_extr in *.
+    rewrite <- H2 in *.
+    destruct (extr (pkt s1) t); try congruence.
+    destruct p.
+    inversion H0; subst.
+    eexists; intuition eauto.
+    simpl.
+    eauto using agree_bind.
+  - inversion H; subst.
+    destruct n; simpl in *; try congruence.
+    assert (Env.find x (store s1) = Env.find x (store s2)).
+    {
+      eapply Forall_forall in H1; eauto.
+      apply check_in.
+      apply check_add_eq.
+    }
+    rewrite H3 in *.
+    destruct (Env.find x (store s2)); try congruence.
+    unfold interp_emit in *.
+    inversion H0; subst.
+    eexists; intuition eauto.
+    simpl.
+    eapply agree_add; eauto.
+  - destruct n; simpl in * |-; try congruence.
+    destruct (Env.find t ds.(tables)) eqn:?; try congruence.
+    inversion H; subst.
+    clear H.
+    simpl.
+    rewrite Heqo.
+    apply agree_union in H1; intuition.
+    destruct (Env.find t ds.(rules)); try congruence.
+    unfold interp_table in *.
+    erewrite dse_exp_corr by eauto using agree_sym.
+    destruct (interp_exp _ _); try congruence.
+    destruct (find_rule _ _); try congruence.
+    destruct (nth_in_or_default (rule_action r) (table_acts t0) ActNop).
+    + remember (nth (rule_action r) (table_acts t0) ActNop) as act.
+      simpl in *.
+      eapply dse_act_corr; eauto.
+      eapply agree_union_all; eauto.
+      eapply in_map_iff.
+      eexists; intuition eauto with datatypes.
+    + rewrite e in *.
+      simpl in *.
+      eexists; intuition eauto.
+      * inversion H0; subst.
+        unfold acts_live in *.
+        simpl in *.
+        eapply agree_union_all; eauto with datatypes.
+      * congruence.
+Qed.
 
-
+Print Assumptions dse_cmd_corr.

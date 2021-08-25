@@ -62,7 +62,7 @@ Inductive val: Set :=
 | VPair (v1 v2: val).
 
 Record rule :=
-  { rule_match: exp;
+  { rule_match: val;
     rule_action: nat }.
 
 Record table :=

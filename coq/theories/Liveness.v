@@ -51,7 +51,7 @@ Fixpoint act_live (live: varset) (act: action) : varset :=
   end.
 
 Definition acts_live (live: varset) (acts: list action) : varset :=
-  union_all (List.map (act_live live) acts).
+  union_all (List.map (act_live live) (ActNop::acts)).
 
 Fixpoint dead_store_elim
          (tables: Env.t name table)
