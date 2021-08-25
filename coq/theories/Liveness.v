@@ -40,37 +40,17 @@ Fixpoint fv (e: exp) : varset :=
 Import ListNotations.
 Eval compute in (List.fold_right (fun x l => l ++ [x]) [] [1;2;3]).
 
-(* Backwards computation of live vars before c given vars in [live]
-are all live after c *)
-Fixpoint live_vars_transf
-         (tables: Env.t name table)
-         (live: varset)
-         (c: cmd) : varset :=
-  match c with
-  | Assign x e =>
+Fixpoint act_live (live: varset) (act: action) : varset :=
+  match act with
+  | ActAssign x e => 
     union (drop x live) (fv e)
-  | Block cs =>
-    List.fold_right
-      (fun c live =>
-         live_vars_transf tables live c)
-      live
-      cs
-  | If e c1 c2 =>
-    union_all [fv e;
-               live_vars_transf tables live c1;
-               live_vars_transf tables live c2]
-  | Extr x =>
-    drop x live
-  | Emit x =>
-    add x live
-  | Apply t =>
-    match Env.find t tables with
-    | Some t => union (fv (t.(table_key))) live
-    | None => live
-    end
-  | Call a params =>
-    union (union_all (List.map fv params)) live
+  | ActSeq a1 a2 =>
+    act_live (act_live live a2) a1
+  | ActNop => live
   end.
+
+Definition acts_live (live: varset) (acts: list action) : varset :=
+  union_all (List.map (act_live live) acts).
 
 Fixpoint dead_store_elim
          (tables: Env.t name table)
@@ -80,22 +60,13 @@ Fixpoint dead_store_elim
   | Assign x e =>
     if check x live
     then (union (drop x live) (fv e), c)
-    else (live, Block [])
-  | Block cs =>
-    let (live, cs) :=
-        List.fold_right
-          (fun c '(live, cs) =>
-             let (live, c') := dead_store_elim tables live c in
-             match c' with
-             | Block [] =>
-               (live, cs)
-             | c' =>
-               (live, c' :: cs)
-             end)
-          (live, [])
-          cs
-    in
-    (live, Block cs)
+    else (live, Nop)
+  | Nop =>
+    (live, Nop)
+  | Seq c1 c2 =>
+    let (live, c2) := dead_store_elim tables live c2 in
+    let (live, c1) := dead_store_elim tables live c1 in
+    (live, Seq c1 c2)
   | If e c1 c2 =>
     let (live1, c1) := dead_store_elim tables live c1 in
     let (live2, c2) := dead_store_elim tables live c2 in
@@ -106,14 +77,14 @@ Fixpoint dead_store_elim
     (add x live, c)
   | Apply t =>
     match Env.find t tables with
-    | Some t => (union (fv (t.(table_key))) live, c)
+    | Some t =>
+      let live := acts_live live t.(table_acts) in
+      (union (fv (t.(table_key))) live, c)
     | None => (live, c)
     end
-  | Call a params =>
-    (union (union_all (List.map fv params)) live, c)
   end.
 
-Eval compute in dead_store_elim [] [] (Block [Assign "x" (Bits [true])]).
-Eval compute in dead_store_elim [] [] (Block [Assign "x" (Bits [true]); Assign "x" (Var "x")]).
-Eval compute in dead_store_elim [] ["x"; "y"] (Block [Assign "x" (Bits [true]); Assign "x" (Var "x")]).
-Eval compute in dead_store_elim [] ["x"; "y"] (Block [Assign "x" (Bits [true]); Assign "x" (Var "y")]).
+Eval compute in dead_store_elim [] [] (Assign "x" (Bits [true])).
+Eval compute in dead_store_elim [] [] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "x"))).
+Eval compute in dead_store_elim [] ["x"; "y"] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "x"))).
+Eval compute in dead_store_elim [] ["x"; "y"] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "y"))).

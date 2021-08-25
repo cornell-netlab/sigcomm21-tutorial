@@ -55,5 +55,36 @@ Section Env.
     rewrite filter_idem.
     reflexivity.
   Qed.
-  
+
+  Lemma find_filter_neq:
+    forall x y s,
+      x <> y ->
+      find x (filter (diff_key y) s) = find x s.
+  Proof.
+    intros.
+    induction s.
+    - reflexivity.
+    - simpl.
+      destruct a.
+      destruct (diff_key y (k, v)) eqn:?.
+      + cbv in Heqb.
+        simpl.
+        rewrite IHs.
+        reflexivity.
+      + rewrite IHs.
+        cbv in Heqb.
+        destruct (K_eq_dec y k), (equiv_dec x k); congruence.
+  Qed.
+
+  Lemma find_bind_neq:
+    forall x y v s,
+      x <> y ->
+      Env.find x (Env.bind y v s) = Env.find x s.
+  Proof.
+    intros.
+    simpl.
+    destruct (equiv_dec x y); try congruence.
+    rewrite find_filter_neq; eauto.
+  Qed.
+
 End Env.

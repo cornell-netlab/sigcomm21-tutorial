@@ -117,41 +117,19 @@ Fixpoint interp_exp (s: state) (e: exp) : option val :=
 
 Definition set_store (s: state) (e: Env.t name val) : state :=
   {| store := e;
-     type_env := s.(type_env);
-     pkt := s.(pkt);
-     acts := s.(acts);
-     tables := s.(tables);
-     rules := s.(rules) |}.
-
-Definition set_type_env (s: state) (e: Env.t name typ) : state :=
-  {| store := s.(store);
-     type_env := e;
-     pkt := s.(pkt);
-     acts := s.(acts);
-     tables := s.(tables);
-     rules := s.(rules) |}.
+     pkt := s.(pkt) |}.
 
 Definition set_pkt (s: state) (pk: list bool) : state :=
   {| store := s.(store);
-     type_env := s.(type_env);
-     pkt := pk;
-     acts := s.(acts);
+     pkt := pk |}.
+
+Definition set_type_env (s: def_state) (e: Env.t name typ) : def_state :=
+  {| type_env := e;
      tables := s.(tables);
      rules := s.(rules) |}.
 
-Definition set_acts (s: state) (e: Env.t name action) : state :=
-  {| store := s.(store);
-     type_env := s.(type_env);
-     pkt := s.(pkt);
-     acts := e;
-     tables := s.(tables);
-     rules := s.(rules) |}.
-
-Definition set_tables (s: state) (e: Env.t name table) : state :=
-  {| store := s.(store);
-     type_env := s.(type_env);
-     pkt := s.(pkt);
-     acts := s.(acts);
+Definition set_tables (s: def_state) (e: Env.t name table) : def_state :=
+  {| type_env := s.(type_env);
      tables := e;
      rules := s.(rules) |}.
 
@@ -192,11 +170,7 @@ Definition interp_extr (s: state) (x: name) (t: typ) : option state :=
   match extr s.(pkt) t with
   | Some (v, pk) =>
     Some {| store := Env.bind x v s.(store);
-            type_env := s.(type_env);
-            pkt := pk;
-            acts := s.(acts);
-            tables := s.(tables);
-            rules := s.(rules) |}
+            pkt := pk |}
   | None => None
   end.
 
@@ -232,31 +206,55 @@ Definition bind_args (ps: list (name * typ)) (args: list val) (s: state) : optio
   then Some (List.fold_left bind_arg (List.combine ps args) s)
   else None.
 
-Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
+Fixpoint interp_act (s: state) (a: action) : option state :=
+  match a with
+  | ActAssign x e =>
+    option_map (assign s x) (interp_exp s e)
+  | ActSeq a1 a2 =>
+    match interp_act s a1 with
+    | Some s => interp_act s a2
+    | None => None
+    end
+  | ActNop =>
+    Some s
+  end.
+
+Definition interp_table (s: state) (tbl: table) (rules: list rule) : option state :=
+  match interp_exp s tbl.(table_key) with
+  | Some key =>
+    match find_rule s key rules with
+    | Some r =>
+      interp_act s (List.nth r.(rule_action) tbl.(table_acts) ActNop)
+    | None => None
+    end
+  | None => None
+  end.
+
+Fixpoint interp_cmd (fuel: nat) (d: def_state) (s: state) (c: cmd) : option state :=
   match fuel with
   | 0 => None
   | S fuel =>
     match c with
     | Assign x e =>
       option_map (assign s x) (interp_exp s e)
-    | Block cs => List.fold_right
-                   (fun c s => match s with
-                            | Some s => interp_cmd fuel s c
-                            | None => None
-                            end)
-                   (Some s)
-                   cs
+    | Nop => Some s
+    | Seq c1 c2 =>
+      match interp_cmd fuel d s c1 with
+      | Some s =>
+        interp_cmd fuel d s c2
+      | None => None
+      end
     | If e c1 c2 =>
       match interp_exp s e with
       | Some (VBits [true]) =>
-        interp_cmd fuel s c1
+        interp_cmd fuel d s c1
       | Some _ =>
-        interp_cmd fuel s c2
+        interp_cmd fuel d s c2
       | None =>
         None
       end
     | Extr x => 
-      match Env.find x s.(type_env) with
+      match Env.find x d.(type_env) with
       | Some t => interp_extr s x t
       | None => None
       end
@@ -266,73 +264,38 @@ Fixpoint interp_cmd (fuel: nat) (s: state) (c: cmd) : option state :=
       | None => None
       end
     | Apply t =>
-      match Env.find t s.(tables), Env.find t s.(rules) with
-      | Some tbl, Some rules => interp_table fuel s tbl rules
+      match Env.find t d.(tables), Env.find t d.(rules) with
+      | Some tbl, Some rules => interp_table s tbl rules
       | _, _ => None
       end
-    | Call a args =>
-      match all_some (List.map (interp_exp s) args) with
-      | Some arg_vals => interp_call fuel s a arg_vals
-      | None => None
-      end
     end
-  end
-with interp_call (fuel: nat) (s: state) (a: name) (args: list val) : option state :=
-       match fuel with
-       | 0 => None
-       | S fuel =>
-         match Env.find a s.(acts) with
-         | Some act =>
-           match bind_args act.(params) args s with
-           | Some s => interp_cmd fuel s act.(body)
-           | None => None
-           end
-         | None => None
-         end
-       end
-with interp_table (fuel: nat) (s: state) (tbl: table) (rules: list rule) : option state :=
-       match fuel with
-       | 0 => None
-       | S fuel =>
-         match interp_exp s tbl.(table_key) with
-         | Some key =>
-           match find_rule s key rules with
-           | Some r => interp_call fuel s r.(rule_action) r.(rule_args)
-           | None => None
-           end
-         | None => None
-         end
-       end.
-
-Program Fixpoint interp_defn (fuel: nat) (s: state) (d: defn) : option state :=
-  match d with
-  | VarDecl t x e =>
-    option_map (fun v =>
-                  set_type_env
-                    (assign s x v)
-                    (Env.bind x t s.(type_env)))
-               (interp_exp s e)
-  | Action a params c =>
-    Some (set_acts s (Env.bind a {| body := c; params := params |} s.(acts)))
-  | Table t keys actions =>
-    Some (set_tables s (Env.bind t {| table_key:=keys; table_acts := actions |} s.(tables)))
   end.
 
-Fixpoint interp_defns (fuel: nat) (s: state) (defs: list defn) : option state :=
+Program Fixpoint interp_defn (fuel: nat) (ds: def_state) (s: state) (d: defn) : option (def_state * state) :=
+  match d with
+  | VarDecl t x e =>
+    option_map (fun v => (set_type_env ds (Env.bind x t ds.(type_env)),
+                       assign s x v))
+               (interp_exp s e)
+  | Table t keys acts =>
+    Some (set_tables ds (Env.bind t {| table_key:=keys; table_acts := acts |} ds.(tables)), s)
+  end.
+
+Fixpoint interp_defns (fuel: nat) (ds: def_state) (s: state) (defs: list defn) : option (def_state * state) :=
   match defs with
-  | [] => Some s
+  | [] => Some (ds, s)
   | d :: defs =>
-    match interp_defn fuel s d with
-    | Some s => interp_defns fuel s defs
+    match interp_defn fuel ds s d with
+    | Some (ds, s) => interp_defns fuel ds s defs
     | None => None
     end
   end.
 
-Definition interp_prog (fuel: nat) (s: state) (p: prog) : option state :=
+Definition interp_prog (fuel: nat) (ds: def_state) (s: state) (p: prog) : option state :=
   let '(defs, c) := p in
-  match interp_defns fuel s defs with
-  | Some s =>
-    interp_cmd fuel s c
+  match interp_defns fuel ds s defs with
+  | Some (ds, s) =>
+    interp_cmd fuel ds s c
   | None =>
     None
   end.

@@ -14,21 +14,8 @@ Lemma check_union_false:
 Proof.
 Admitted.
 
-Definition dead (x: name) (c: cmd) : Prop :=
-  forall n s s',
-    interp_cmd n s c = Some s' ->
-    forall v,
-      exists m,
-        interp_cmd m (assign s x v) c = Some s'.
-
-Lemma exp_assign_fv:
-  forall s e x v,
-    check x (fv e) = false ->
-    interp_exp (assign s x v) e = interp_exp s e.
-Proof.
-  induction e.
-  simpl.
-Admitted.
+Definition agree (s: varset) (s1 s2: Env.t name val) : Prop :=
+  Forall (fun x => Env.find x s1 = Env.find x s2) s.
 
 Lemma option_map_Some:
   forall A B (f: A -> B) x y,
@@ -132,10 +119,10 @@ Proof.
 Admitted.
 
 Lemma interp_cmd_fuel:
-  forall m n s c v,
+  forall m n ds s c v,
     m >= n ->
-    interp_cmd n s c = Some v ->
-    interp_cmd m s c = Some v.
+    interp_cmd n ds s c = Some v ->
+    interp_cmd m ds s c = Some v.
 Proof.
 Admitted.
 
@@ -152,117 +139,73 @@ Proof.
   - reflexivity.
 Qed.
 
-Lemma dse_dead:
-  forall tables live c live' c',
-    dead_store_elim tables live c = (live', c') ->
-    forall x,
-      check x live' = false ->
-      dead x c \/ check x live = false.
+Lemma agree_refl:
+  forall v s,
+    agree v s s.
+Proof.
+  unfold agree.
+  intros.
+  rewrite Forall_forall.
+  intros.
+  reflexivity.
+Qed.
+
+Lemma agree_bind_neq:
+  forall x live v s,
+  check x live = false ->
+  agree live (Env.bind x v s) s.
+Proof.
+  intros.
+  unfold agree.
+  apply Forall_forall.
+  intros.
+  unfold check in H.
+  destruct (in_dec name_eq_dec x live); try congruence.
+  rewrite Env.find_bind_neq; eauto.
+  intro; subst; tauto.
+Qed.
+
+Lemma dse_corr:
+  forall c live live' c' ds,
+    dead_store_elim ds.(tables) live c = (live', c') ->
+    forall n s1 s1',
+      interp_cmd n ds s1 c = Some s1' ->
+      forall s2,
+        agree live' s1.(store) s2.(store) ->
+        s1.(pkt) = s2.(pkt) ->
+        exists s2',
+          interp_cmd n ds s2 c' = Some s2' /\
+          agree live s1'.(store) s2'.(store) /\
+          s1'.(pkt) = s2'.(pkt).
 Proof.
   induction c; simpl; intros.
-  - destruct (name_eq_dec x x0); unfold Equivalence.equiv in *; subst.
-    + destruct (check x0 live) eqn:?; inversion H; subst.
-      * apply check_union_false in H0; intuition.
-        left.
-        unfold dead; intros.
-        exists n.
-        destruct n; simpl in *; auto.
-        rewrite exp_assign_fv by auto.
-        eapply option_map_Some in H0.
-        destruct H0 as [z [? ?]].
-        subst.
-        rewrite H0.
-        simpl.
-        rewrite assign_overwrite.
-        reflexivity.
-      * tauto.
-    + right.
-      destruct (check x live) eqn:?; simpl in *.
-      * inversion H.
-        subst.
-        apply check_union_false in H0.
-        destruct H0 as [? ?].
-        rewrite check_drop in H0; eauto.
-      * congruence.
+  - destruct n; simpl in * |-; try congruence.
+    destruct (check x live) eqn:?; inversion H; clear H; subst.
+    + simpl.
+      admit.
+    + admit.
   - admit.
-  - destruct (dead_store_elim tables live c1) as [live1 c1'] eqn:?.
-    destruct (dead_store_elim tables live c2) as [live2 c2'] eqn:?.
-    unfold union_all in *.
-    simpl in H.
-    inversion H; clear H.
-    subst live'.
-    subst c'.
-    specialize (IHc1 live1 c1' eq_refl x).
-    specialize (IHc2 live2 c2' eq_refl x).
-    apply check_union_false in H0.
-    destruct H0.
-    apply check_union_false in H.
-    destruct H.
-    apply IHc1 in H1.
-    apply IHc2 in H0.
-    intuition.
-    left.
-    rewrite union_emp_l in H.
-    unfold dead; intros.
-    destruct n; simpl in *; try congruence.
-    destruct (interp_exp s e) eqn:?; try congruence.
-    destruct (val_eq_dec v0 (VBits [true])) as [e0 | e0]; cbv in e0; subst.
-    * apply H2 in H0.
-      destruct (H0 v) as [m ?].
-      exists (S m).
-      destruct m; [cbn in *; congruence|].
-      remember (S m) as m'.
-      simpl.
-      rewrite exp_assign_fv; auto.
-      rewrite Heqo.
-      rewrite Heqm'.
-      eapply interp_cmd_fuel; [|eassumption].
-      lia.
-    * assert (interp_cmd n s c2 = Some s').
-      {
-        destruct v0; try congruence.
-        destruct bs as [|[|] [|?]]; try congruence.
-      }
-      clear H0.
-      apply H1 in H3.
-      destruct (H3 v) as [m ?].
-      exists (S m).
-      destruct m; [cbn in *; congruence|].
-      remember (S m) as m'.
-      simpl.
-      rewrite exp_assign_fv; auto.
-      rewrite Heqo.
-      cut (interp_cmd m' (assign s x v) c2 = Some s').
-      {
-        destruct v0; try congruence.
-        destruct bs as [|[|] [|?]]; try congruence.
-      }
-      rewrite Heqm'.
-      eapply interp_cmd_fuel; [|eassumption].
-      lia.
-  - inversion H.
-    subst.
+  - destruct n; try solve [simpl in H0; congruence].
+    simpl in H0.
+    destruct (interp_cmd n ds s1 c1) eqn:?;
+             [|destruct n; try congruence].
+    destruct (dead_store_elim (tables ds) live c2) as [live2 c2'] eqn:?.
+    destruct (dead_store_elim (tables ds) live2 c1) as [live1 c1'] eqn:?.
+    inversion H.
+    subst live' c'.
     clear H.
-    destruct (name_eq_dec x x0).
-    + cbv in e; subst x0.
-      left.
-      unfold dead; intros.
-      exists n.
-      destruct n; simpl in *; try congruence.
-      destruct (Env.find x (type_env s)) in *; try congruence.
-      rewrite interp_extr_assign.
-      tauto.
-    + right.
-      rewrite check_drop in H0; congruence.
-  - right.
-    destruct (name_eq_dec x x0).
-    + cbv in e; subst x0.
-      inversion H.
-      subst live'.
-      rewrite check_add_eq in *.
-      congruence.
-    + inversion H; subst live'.
-      rewrite check_add_neq in H0; eauto.
+    eapply IHc1 in Heqo; [| eauto | eauto | eauto].
+    destruct Heqo; intuition.
+    eapply IHc2 in Heqp; [| eauto | eauto | eauto].
+    destruct Heqp; intuition.
+    simpl.
+    exists x0.
+    rewrite H3.
+    eauto.
+  - admit.
+  - admit.
   - admit.
   - admit.
 Admitted.
+
+

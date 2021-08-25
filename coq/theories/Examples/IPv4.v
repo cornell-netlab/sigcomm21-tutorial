@@ -13,14 +13,14 @@ Definition ipv4_t : typ :=
 Definition zeros (n: nat) : exp :=
   Bits (List.repeat false n).
 
+Definition set_out : action :=
+  ActAssign "meta" (Tuple [EBool false; (Proj (Var "ip") 1)]).
+
 Definition ipv4_defns : list defn :=
   [VarDecl ipv4_t "ip" (Tuple [zeros 8; zeros 8]);
-   Action "set_out"
-          [("port", Bit 8)]
-          (Assign "meta" (Tuple [EBool false; Var "port"]));
-   Table "route" (Proj (Var "ip") 1) ["set_out"]].
+   Table "route" (Proj (Var "ip") 1) [set_out]].
 
 Definition ipv4_cmd : cmd :=
-  Block [Extr "ip";
-         Apply "route";
-         Emit "ip"].
+  Seq (Extr "ip")
+      (Seq (Apply "route")
+           (Emit "ip")).
