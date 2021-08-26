@@ -40,7 +40,7 @@ let rec format_exp (e: exp) : 'a Pp.t =
      text "("
      ++ concat_map es
           ~f:format_exp
-          ~sep:(text ", ")
+          ~sep:(verbatim ", ")
      ++ text ")"
   | Proj (e, n) ->
      format_exp e ++ text "." ++ format_int n
