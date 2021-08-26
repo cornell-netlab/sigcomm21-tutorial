@@ -11,6 +11,8 @@ type formula =
   | Eq of term * term 
   | Neq of term * term
 
+val format_formula : formula -> 'a Pp.t
+
 val input_pkt : name
 val output_pkt : name
 

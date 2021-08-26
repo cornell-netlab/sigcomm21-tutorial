@@ -9,24 +9,39 @@ type state =
     path_cond : Smt.formula;
     trace : Trace.t list }
 
+let mk_concat e1 e2 = 
+  match e1,e2 with 
+    | Tt,e 
+    | e,Tt -> e
+    | _ -> Tuple(e1,e2)
+
+let mk_concat_typ t1 t2 = 
+  match t1,t2 with 
+  | Unit,t
+  | t, Unit -> t
+  | _ -> Prod(t1,t2)
+
 let mtu = 4
 
 let init_typ_env = 
   let pkt_typ = 
     let rec loop acc n = 
       if n = 0 then acc
-      else loop (Prod(Bit(8), acc)) (n-1) in
+      else loop (mk_concat_typ (Bit(8)) acc) (n-1) in
     loop Unit (mtu - 1) in
 
-  let bindings = 
+  let bindings =
     [ (Smt.input_pkt, pkt_typ);
       (Smt.output_pkt, Unit) ] in
   Env.StringMap.of_seq (List.to_seq bindings)
 
+let init_sym_env = 
+  Env.StringMap.singleton Smt.output_pkt Tt
+
 let init_state = 
   { defns = [];
     typ_env = init_typ_env;
-    sym_env = Env.StringMap.empty;
+    sym_env = init_sym_env;
     extract_cur = 0;
     emit_cur = 0;
     path_cond = Smt.True;
@@ -134,10 +149,10 @@ and interp_cmd (st:state) (c:cmd) : state list =
   | Emit(x) -> 
      let emit_cur = st.emit_cur + 1 in
      let output_slice = Env.StringMap.find x st.sym_env in
-     let old_output_pkt = Env.StringMap.find Smt.output_pkt st.sym_env in 
+     let old_output_pkt = Env.StringMap.find Smt.output_pkt st.sym_env in
      let old_output_typ = Env.StringMap.find Smt.output_pkt st.typ_env in 
-     let sym_env = Env.StringMap.add Smt.output_pkt (Tuple(old_output_pkt, output_slice)) st.sym_env in
-     let typ_env = Env.StringMap.add Smt.output_pkt (Prod(old_output_typ, Bit(8))) st.typ_env in
+     let sym_env = Env.StringMap.add Smt.output_pkt (mk_concat old_output_pkt output_slice) st.sym_env in
+     let typ_env = Env.StringMap.add Smt.output_pkt (mk_concat_typ old_output_typ (Bit(8))) st.typ_env in
      let trace = Trace.Emit(x,output_slice)::st.trace in
      [ { st with sym_env; typ_env; emit_cur; trace } ]
 

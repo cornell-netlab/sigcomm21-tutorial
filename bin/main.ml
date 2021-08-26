@@ -23,7 +23,7 @@ let cmd =
          Seq(Assign("x", Bits([false;true;false;true;false;true;false;true])),
              Seq(Emit("x"),
                  Seq(Assign("x", Bits(Util.repeat true 8)),
-                     Emit("x")))),
+                     Seq(Emit("x"), Emit("x"))))),
          Emit("x")))
 
 let prog = defns, cmd

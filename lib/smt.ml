@@ -11,14 +11,28 @@ type formula =
   | Eq of term * term 
   | Neq of term * term
 
+let rec format_formula = 
+  let open Pp in 
+  let open Pp.O in 
+  function
+  | True -> text "True"
+  | False -> text "False"
+  | And(p1,p2) -> text "And(" ++ format_formula p1 ++ text "," ++ format_formula p2 ++ text")"
+  | Or(p1,p2) -> text "Or(" ++ format_formula p1 ++ text "," ++ format_formula p2 ++ text ")"
+  | Not(p) -> text "Not(" ++ format_formula p ++ text ")"
+  | Eq(e1,e2) -> text "Eq(" ++ Printer.format_exp e1 ++ text "," ++ Printer.format_exp e2 ++ text ")"
+  | Neq(e1,e2) -> text "Eq(" ++ Printer.format_exp e1 ++ text "," ++ Printer.format_exp e2 ++ text ")"
+
 let ctx = Z3.mk_context [("model", "true")]
+
+let prod_ctr = ref 0
+let prod_hash = Hashtbl.create 31 
+let unit_ref = ref None 
+let mk_tuple n = Printf.sprintf "tuple_%d" n  
+let mk_field n i = Printf.sprintf "field_%d_%d" n i   
 
 let rec z3_of_typ : typ -> Z3.Sort.sort = 
   (* Hash-cons tuple types *) 
-  let prod_ctr = ref 0 in
-  let prod_hash = Hashtbl.create 31 in
-  let mk_tuple n = Printf.sprintf "tuple_%d" n in 
-  let mk_field n i = Printf.sprintf "tuple_%d_%d" n i in   
   function
   | Bool -> 
      Z3.Boolean.mk_sort ctx
@@ -29,20 +43,28 @@ let rec z3_of_typ : typ -> Z3.Sort.sort =
        try
          Hashtbl.find prod_hash (t1,t2)
        with Not_found ->
-         let () = incr prod_ctr in
+         let n = incr prod_ctr; !prod_ctr in
          let sort1 = z3_of_typ t1 in
-         let sort2 = z3_of_typ t1 in
-         let tuple_sym = Z3.Symbol.mk_string ctx (mk_tuple !prod_ctr) in
-         let field1 = Z3.Symbol.mk_string ctx (mk_field !prod_ctr 1) in 
-         let field2 = Z3.Symbol.mk_string ctx (mk_field !prod_ctr 2) in 
+         let sort2 = z3_of_typ t2 in
+         let tuple_sym = Z3.Symbol.mk_string ctx (mk_tuple n) in
+         let field1 = Z3.Symbol.mk_string ctx (mk_field n 1) in
+         let field2 = Z3.Symbol.mk_string ctx (mk_field n 2) in
          let sort = Z3.Tuple.mk_sort ctx tuple_sym [field1;field2] [sort1;sort2] in
          let () = Hashtbl.add prod_hash (t1,t2) sort in
          sort
-     end   
+     end
   | Unit -> 
-     failwith "unimplemented"
-    
-let z3_mk_constr t = 
+     begin 
+       match !unit_ref with 
+       | Some sort -> 
+          sort
+       | None -> 
+          let sort = Z3.Tuple.mk_sort ctx (Z3.Symbol.mk_string ctx "tuple_unit") [] [] in 
+          unit_ref := Some sort;
+          sort
+     end 
+
+let z3_mk_constr t =
   let sort = z3_of_typ t in
   let func = Z3.Tuple.get_mk_decl sort in
   (fun es -> Z3.Expr.mk_app ctx func es)
@@ -65,12 +87,8 @@ let z3_of_var typ_env x =
      let sort = z3_of_typ typ in
      Z3.Expr.mk_const_s ctx x sort
 
-let extract_byte (e:Z3.Expr.expr) : bool list = 
-  let hex = "0" ^ String.sub (Z3.Expr.to_string e) 1 3 in
-  Util.bits_of_hexstring hex 8
-
 let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr = 
-  match e with 
+  let res = match e with 
   | Var(x) -> 
      z3_of_var typ_env x
   | EBool(true) -> 
@@ -80,13 +98,13 @@ let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr =
   | Bits(bs) -> 
      let length = List.length bs in
      let str = Util.intstring_of_bits bs in
-     let res = Z3.BitVector.mk_numeral ctx str length in
-     assert (extract_byte res = bs);
-     res
+     Z3.BitVector.mk_numeral ctx str length
   | Tuple(e1,e2) -> 
      let t = Check.typ_of_exp typ_env e in
      let constr = z3_mk_constr t in
-     constr (List.map (z3_of_term typ_env) [e1;e2])
+     let z1 = z3_of_term typ_env e1 in 
+     let z2 = z3_of_term typ_env e2 in 
+     constr [z1;z2] 
   | Proj1(e) -> 
      let t = Check.typ_of_exp typ_env e in
      let proj = z3_mk_proj t in
@@ -96,7 +114,8 @@ let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr =
      let proj = z3_mk_proj t in
      proj (z3_of_term typ_env e) 2
   | Tt -> 
-     failwith "unimplemented"
+     let constr = z3_mk_constr Unit in
+     constr [] 
   | BinOp(Eq, e1, e2) -> 
      Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2)
   | BinOp(Neq, e1, e2) ->
@@ -105,9 +124,12 @@ let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr =
   | UOp(Hash, _) -> 
      assert false
   | UOp(Sum, _) -> 
-     assert false
+     assert false in
+  res
 
-let rec z3_of_formula typ_env = function
+
+let rec z3_of_formula typ_env (p:formula) = 
+  match p with
   | True -> 
      Z3.Boolean.mk_true ctx
   | False -> 
@@ -120,7 +142,8 @@ let rec z3_of_formula typ_env = function
      Z3.Boolean.mk_not ctx (z3_of_formula typ_env p)
   | Eq(t1,t2) ->
      Z3.Boolean.mk_eq ctx (z3_of_term typ_env t1) (z3_of_term typ_env t2)
-  | Neq(t1,t2) -> Z3.Boolean.mk_eq ctx (z3_of_term typ_env t1) (z3_of_term typ_env t2) |> Z3.Boolean.mk_not ctx
+  | Neq(t1,t2) -> 
+     Z3.Boolean.mk_eq ctx (z3_of_term typ_env t1) (z3_of_term typ_env t2) |> Z3.Boolean.mk_not ctx 
 
 let input_pkt = "$input"
 let output_pkt = "$output"

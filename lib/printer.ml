@@ -26,6 +26,13 @@ let format_bitstring (bs: bitstring) : 'a Pp.t =
   text "0b"
   ++ concat_map ~f:format_bit bs
 
+let rec format_typ (t: typ) : 'a Pp.t = 
+  match t with 
+  | Bool -> text "bool"
+  | Bit(n) -> text "bit<" ++ format_int n ++ text ">"
+  | Prod(t1,t2) -> text "(" ++ format_typ t1 ++ text "," ++ format_typ t2 ++ text ")"
+  | Unit -> text "unit"
+
 let rec format_exp (e: exp) : 'a Pp.t =
   match e with
   | Var x ->
