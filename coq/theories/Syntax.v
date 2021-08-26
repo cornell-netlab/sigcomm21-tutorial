@@ -77,4 +77,5 @@ Record def_state :=
 
 Record state :=
   { store: Env.t name val;
-    pkt: list bool }.
+    in_pkt: list bool;
+    out_pkt: list bool }.

@@ -131,11 +131,18 @@ Fixpoint interp_exp (s: state) (e: exp) : option val :=
 
 Definition set_store (s: state) (e: Env.t name val) : state :=
   {| store := e;
-     pkt := s.(pkt) |}.
+     in_pkt := s.(in_pkt);
+     out_pkt := s.(out_pkt) |}.
 
-Definition set_pkt (s: state) (pk: list bool) : state :=
+Definition set_in_pkt (s: state) (pk: list bool) : state :=
   {| store := s.(store);
-     pkt := pk |}.
+     in_pkt := pk;
+     out_pkt := s.(out_pkt) |}.
+
+Definition grow_out_pkt (s: state) (pk: list bool) : state :=
+  {| store := s.(store);
+     in_pkt := s.(in_pkt);
+     out_pkt := s.(out_pkt) ++ pk |}.
 
 Definition set_type_env (s: def_state) (e: Env.t name typ) : def_state :=
   {| type_env := e;
@@ -175,10 +182,11 @@ Fixpoint extr (pk: list bool) (t: typ) : option (val * list bool) :=
   end.
 
 Definition interp_extr (s: state) (x: name) (t: typ) : option state :=
-  match extr s.(pkt) t with
+  match extr s.(in_pkt) t with
   | Some (v, pk) =>
     Some {| store := Env.bind x v s.(store);
-            pkt := pk |}
+            in_pkt := pk;
+            out_pkt := s.(out_pkt) |}
   | None => None
   end.
 
@@ -193,7 +201,7 @@ Fixpoint emit (v: val) : list bool :=
 
 Definition interp_emit (s: state) (v: val) : option state :=
   let bs := emit v in
-  Some (set_pkt s bs).
+  Some (grow_out_pkt s bs).
 
 Fixpoint find_rule (k: val) (rules: list rule) : option rule :=
   match rules with
