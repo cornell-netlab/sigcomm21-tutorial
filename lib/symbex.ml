@@ -120,16 +120,22 @@ let rec interp_action (st:state) (act:action) : state list =
 
 and interp_cmd (st:state) (c:cmd) : state list = 
   match c with
-  | Assign(x,exp) -> 
-     let sym_env = Env.StringMap.add x exp st.sym_env in 
-     let trace = Trace.Assign(x,exp)::st.trace in 
-     [ { st with sym_env; trace } ]
   | Nop -> 
      [st]
   | Seq(c1,c2) -> 
      List.concat_map 
        (fun st1 -> interp_cmd st1 c2) 
        (interp_cmd st c1) 
+  | Assign(x,exp) -> 
+     let sym_env = Env.StringMap.add x exp st.sym_env in 
+     let trace = Trace.Assign(x,exp)::st.trace in 
+     [ { st with sym_env; trace } ]
+  | Assert(e) ->
+     let e_tru = formula_of_exp st e in 
+     [ { st with path_cond = Smt.And(st.path_cond, e_tru) }]
+  | Assume(e) ->
+     let e_tru = formula_of_exp st e in 
+     [ { st with path_cond = Smt.And(st.path_cond, e_tru) }]
   | If(e,c_tru, c_fls) -> 
      let e_tru = formula_of_exp st e in
      let st_tru = { st with path_cond = Smt.And(st.path_cond, e_tru) } in

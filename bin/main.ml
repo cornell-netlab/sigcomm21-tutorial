@@ -5,7 +5,8 @@ open Minip4
 let init_state = 
   let open Syntax in
   { store = [];
-    pkt = [] }
+    in_pkt = [];
+    out_pkt = [] }
 
 let init_def_state = 
   let open Syntax in
@@ -46,11 +47,11 @@ let symbex () =
 
 let interp () = 
    Format.printf "*** Welcome to MiniP4 ***\n%!";
-   Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.pkt);
+   Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.in_pkt);
    match Interp.interp_prog fuel init_def_state init_state prog with 
    | None -> 
      Format.printf "[Error]"
   | Some state -> 
-     Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.pkt)
+     Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.out_pkt)
 
 let () = symbex ()
