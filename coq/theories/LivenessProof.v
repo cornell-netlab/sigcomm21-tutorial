@@ -111,7 +111,7 @@ Proof.
   intros.
   unfold interp_extr.
   simpl.
-  destruct (extr (pkt s) t) as [[? ?]|].
+  destruct (extr (in_pkt s) t) as [[? ?]|].
   - rewrite Env.bind_overwrite.
     reflexivity.
   - reflexivity.
@@ -406,9 +406,16 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma pkt_assign:
+Lemma in_pkt_assign:
   forall s x v,
-    pkt (assign s x v) = pkt s.
+    in_pkt (assign s x v) = in_pkt s.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma out_pkt_assign:
+  forall s x v,
+    out_pkt (assign s x v) = out_pkt s.
 Proof.
   reflexivity.
 Qed.
@@ -471,11 +478,13 @@ Lemma dse_act_corr:
       interp_act s1 act = Some s1' ->
       forall s2,
         agree live' s1.(store) s2.(store) ->
-        s1.(pkt) = s2.(pkt) ->
+        s1.(in_pkt) = s2.(in_pkt) ->
+        s1.(out_pkt) = s2.(out_pkt) ->
         exists s2',
           interp_act s2 act = Some s2' /\
           agree live s1'.(store) s2'.(store) /\
-          s1'.(pkt) = s2'.(pkt).
+          s1'.(in_pkt) = s2'.(in_pkt) /\
+          s1'.(out_pkt) = s2'.(out_pkt).
 Proof.
   induction act; simpl; intros.
   - subst live'.
@@ -495,8 +504,7 @@ Proof.
     eapply IHact1 in H''; eauto.
     destruct H''.
     intuition.
-    rewrite H4.
-    symmetry in H.
+    rewrite H5.
     eapply IHact2 in H0; eauto.
     congruence.
   - exists s2.
@@ -510,11 +518,13 @@ Lemma dse_cmd_corr:
       interp_cmd n ds s1 c = Some s1' ->
       forall s2,
         agree live' s1.(store) s2.(store) ->
-        s1.(pkt) = s2.(pkt) ->
+        s1.(in_pkt) = s2.(in_pkt) ->
+        s1.(out_pkt) = s2.(out_pkt) ->
         exists s2',
           interp_cmd n ds s2 c' = Some s2' /\
           agree live s1'.(store) s2'.(store) /\
-          s1'.(pkt) = s2'.(pkt).
+          s1'.(in_pkt) = s2'.(in_pkt) /\
+          s1'.(out_pkt) = s2'.(out_pkt).
 Proof.
   induction c; simpl; intros.
   - destruct n; simpl in * |-; try congruence.
@@ -528,7 +538,7 @@ Proof.
       rewrite H in *.
       destruct (interp_exp s2 e) eqn:?; simpl in *; try congruence.
       exists (assign s2 x v).
-      erewrite !pkt_assign in *; eauto.
+      erewrite !in_pkt_assign, !out_pkt_assign in *; eauto.
       inversion H.
       intuition.
       apply agree_assign.
@@ -553,13 +563,13 @@ Proof.
     inversion H.
     subst live' c'.
     clear H.
-    eapply IHc1 in Heqo; [| eauto | eauto | eauto].
+    eapply IHc1 in Heqo; [| eauto | eauto | eauto | eauto].
     destruct Heqo; intuition.
-    eapply IHc2 in Heqp; [| eauto | eauto | eauto].
+    eapply IHc2 in Heqp; [| eauto | eauto | eauto | eauto].
     destruct Heqp; intuition.
     simpl.
     exists x0.
-    rewrite H3.
+    rewrite H4.
     eauto.
   - destruct (dead_store_elim _ _ c1) eqn:?.
     destruct (dead_store_elim _ _ c2) eqn:?.
@@ -585,7 +595,7 @@ Proof.
     destruct (Env.find x (type_env ds)); try congruence.
     unfold interp_extr in *.
     rewrite <- H2 in *.
-    destruct (extr (pkt s1) t); try congruence.
+    destruct (extr (in_pkt s1) t); try congruence.
     destruct p.
     inversion H0; subst.
     eexists; intuition eauto.
@@ -599,13 +609,15 @@ Proof.
       apply check_in.
       apply check_add_eq.
     }
-    rewrite H3 in *.
+    rewrite H4 in *.
     destruct (Env.find x (store s2)); try congruence.
     unfold interp_emit in *.
     inversion H0; subst.
     eexists; intuition eauto.
-    simpl.
-    eapply agree_add; eauto.
+    + simpl.
+      eapply agree_add; eauto.
+    + simpl.
+      congruence.
   - destruct n; simpl in * |-; try congruence.
     destruct (Env.find t ds.(tables)) eqn:?; try congruence.
     inversion H; subst.
@@ -633,6 +645,35 @@ Proof.
         simpl in *.
         eapply agree_union_all; eauto with datatypes.
       * congruence.
+      * congruence.
+  - destruct n; simpl in *; try congruence.
+    inversion H; subst.
+    exists s2.
+    replace (interp_exp s2 e) with (interp_exp s1 e)
+      by eauto using dse_exp_corr, agree_union_l.
+    destruct (interp_exp s1 e); simpl in *; try congruence.
+    destruct (val_eq_dec v (VBits [true])).
+    + unfold Equivalence.equiv in *.
+      subst.
+      inversion H0.
+      subst.
+      intuition.
+      eauto using agree_union_r.
+    + destruct v as [ [ | [ | ] [ | ] ]| | | ]; congruence.
+  - destruct n; simpl in *; try congruence.
+    inversion H; subst.
+    exists s2.
+    replace (interp_exp s2 e) with (interp_exp s1 e)
+      by eauto using dse_exp_corr, agree_union_l.
+    destruct (interp_exp s1 e); simpl in *; try congruence.
+    destruct (val_eq_dec v (VBits [true])).
+    + unfold Equivalence.equiv in *.
+      subst.
+      inversion H0.
+      subst.
+      intuition.
+      eauto using agree_union_r.
+    + destruct v as [ [ | [ | ] [ | ] ]| | | ]; congruence.
 Qed.
 
 Print Assumptions dse_cmd_corr.

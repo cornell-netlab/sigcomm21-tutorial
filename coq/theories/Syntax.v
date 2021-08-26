@@ -35,7 +35,9 @@ Inductive cmd: Set :=
 | If (e: exp) (c1 c2: cmd)
 | Extr (x: name)
 | Emit (x: name)
-| Apply (t: name).
+| Apply (t: name)
+| Assert (e: exp)
+| Assume (e: exp).
 
 Inductive typ: Set :=
 | Bit (n: nat)
@@ -75,4 +77,5 @@ Record def_state :=
 
 Record state :=
   { store: Env.t name val;
-    pkt: list bool }.
+    in_pkt: list bool;
+    out_pkt: list bool }.
