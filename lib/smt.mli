@@ -13,10 +13,16 @@ type formula =
 
 val format_formula : formula -> 'a Pp.t
 
+val subst_formula : name -> term -> formula -> formula
+
+val formula_of_exp : typ -> exp -> formula
+
 val input_pkt : name
 val output_pkt : name
+val mtu : int
+val init_typ_env : typ Env.StringMap.t
 
-type model
+type model = Z3.Model.model
 
 val extract_value : typ Env.StringMap.t -> model -> name -> exp
 val check : typ Env.StringMap.t -> formula -> model option

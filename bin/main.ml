@@ -1,6 +1,11 @@
 module Interp = Coq_minip4.Interp
 module Syntax = Coq_minip4.Syntax
-open Minip4
+module Util = Minip4.Util
+module Smt = Minip4.Smt
+module Trace = Minip4.Trace
+module Printer = Minip4.Printer
+module Vcgen = Minip4.Vcgen
+module Symbex = Minip4.Symbex
 
 let init_state = 
   let open Syntax in
@@ -27,12 +32,17 @@ let cmd =
                      Seq(Emit("x"), Emit("x"))))),
          Emit("x")))
 
+let _ = ignore(cmd)
+
+let cmd = 
+  let open Syntax in 
+  Seq(Extr("x"), Assert(Var("x")))
+
 let prog = defns, cmd
 
 let fuel = 100
 
 let symbex () = 
-  let () = Format.printf "*** Welcome to MiniP4 ***%!" in
   let states = Symbex.interp_prog prog in
   let go (state:Symbex.state) : unit = 
     Format.printf "\n====================\n";
@@ -46,7 +56,6 @@ let symbex () =
   List.iter go states 
 
 let interp () = 
-   Format.printf "*** Welcome to MiniP4 ***\n%!";
    Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.in_pkt);
    match Interp.interp_prog fuel init_def_state init_state prog with 
    | None -> 
@@ -54,4 +63,15 @@ let interp () =
   | Some state -> 
      Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.out_pkt)
 
-let () = symbex ()
+let vcgen () = 
+  let state = Vcgen.vcgen_prog prog in
+  match Smt.check state.typ_env (Smt.Not(state.cond)) with
+  | None -> 
+     Format.printf "Ok"
+  | Some model -> 
+     Format.printf "Precondition: %a\n" Pp.to_fmt (Smt.format_formula state.cond);
+     Format.printf "Failed: {%s}\n" (Z3.Model.to_string model)
+  
+let () = 
+   Format.printf "*** Welcome to MiniP4 ***\n%!";
+   vcgen ()

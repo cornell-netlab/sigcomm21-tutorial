@@ -23,6 +23,36 @@ let rec format_formula =
   | Eq(e1,e2) -> text "Eq(" ++ Printer.format_exp e1 ++ text "," ++ Printer.format_exp e2 ++ text ")"
   | Neq(e1,e2) -> text "Eq(" ++ Printer.format_exp e1 ++ text "," ++ Printer.format_exp e2 ++ text ")"
 
+let rec subst_term (x:name) (t:term) (t0:term) : term = 
+  match t0 with
+  | Var(y) when x = y -> t
+  | Var _ -> t0
+  | EBool _ -> t0
+  | Bits _ -> t0
+  | Tt -> t0
+  | Tuple(t1,t2) -> Tuple(subst_term x t t1, subst_term x t t2)
+  | Proj1(t1) -> Proj1(subst_term x t t1)
+  | Proj2(t1) -> Proj2(subst_term x t t1)
+  | BinOp(op,t1,t2) -> BinOp(op,subst_term x t t1,subst_term x t t2)
+  | UOp(op,t1) -> UOp(op,subst_term x t t1)
+
+let rec subst_formula (x:name) (t:term) (p:formula) : formula = 
+  match p with 
+  | True -> p
+  | False -> p
+  | And(p1,p2) -> And(subst_formula x t p1, subst_formula x t p2)
+  | Or(p1,p2) -> Or(subst_formula x t p1, subst_formula x t p2)
+  | Not(p) -> Not(subst_formula x t p)
+  | Eq(t1,t2) -> Eq(subst_term x t t1, subst_term x t t2)
+  | Neq(t1,t2) -> Neq(subst_term x t t1, subst_term x t t2)
+
+let formula_of_exp (t:typ) (e:exp) : formula =
+  match t with
+  | Bit(n) -> 
+     Neq(e, Bits(Util.repeat false n))
+  | _ -> 
+     False
+  
 let ctx = Z3.mk_context [("model", "true")]
 
 let prod_ctr = ref 0
@@ -147,6 +177,20 @@ let rec z3_of_formula typ_env (p:formula) =
 
 let input_pkt = "$input"
 let output_pkt = "$output"
+
+let mtu = 4
+
+let init_typ_env = 
+  let pkt_typ = 
+    let rec loop acc n = 
+      if n = 0 then acc
+      else loop (Util.mk_concat_typ (Bit(8)) acc) (n-1) in
+    loop Unit (mtu - 1) in
+
+  let bindings =
+    [ (input_pkt, pkt_typ);
+      (output_pkt, Unit) ] in
+  Env.StringMap.of_seq (List.to_seq bindings)
 
 type model = Z3.Model.model
 

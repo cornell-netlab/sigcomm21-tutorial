@@ -1,3 +1,5 @@
+open Coq_minip4.Syntax
+
 let repeat x n = 
   if n < 0 then 
     failwith "Unexpected error: expected non-negative integer";
@@ -24,3 +26,14 @@ let intstring_of_bits bits =
   Int32.of_string |> 
   Int32.to_string 
 
+let mk_concat_typ t1 t2 = 
+  match t1,t2 with 
+  | Unit,t
+  | t, Unit -> t
+  | _ -> Prod(t1,t2)
+
+let mk_concat e1 e2 = 
+  match e1,e2 with 
+    | Tt,e 
+    | e,Tt -> e
+    | _ -> Tuple(e1,e2)
