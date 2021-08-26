@@ -21,29 +21,36 @@ Inductive exp: Set :=
 | Var (x: name)
 | EBool (b: bool)
 | Bits (bs: bitstring)
-| Tuple (exps: list exp)
-| Proj (e: exp) (n: nat)
+| Tuple (exp1 exp2: exp)
+| Tt (* unit *)
+| Proj1 (e: exp)
+| Proj2 (e: exp)
 | BinOp (o: binop) (e1 e2: exp)
 | UOp (o: uop) (e: exp).
 
 Inductive cmd: Set :=
 | Assign (x: name) (e: exp)
-| Block (cs: list cmd)
+| Nop
+| Seq (c1 c2: cmd)
 | If (e: exp) (c1 c2: cmd)
 | Extr (x: name)
 | Emit (x: name)
-| Apply (t: name)
-| Call (a: name) (args: list exp).
+| Apply (t: name).
 
 Inductive typ: Set :=
 | Bit (n: nat)
 | Bool
-| Prod (ts: list typ).
+| Unit
+| Prod (t1 t2: typ).
+
+Inductive action :=
+| ActAssign (x: name) (e: exp)
+| ActSeq (a1 a2: action)
+| ActNop.
 
 Inductive defn: Set :=
 | VarDecl (t: typ) (x: name) (e: exp)
-| Action (a: name) (params: list (name * typ)) (c: cmd)
-| Table (t: name) (keys: exp) (actions: list name).
+| Table (t: name) (keys: exp) (acts: list action).
 
 Definition prog: Set :=
   list defn * cmd.
@@ -51,24 +58,21 @@ Definition prog: Set :=
 Inductive val: Set :=
 | VBits (bs: bitstring)
 | VBool (b: bool)
-| VTuple (vs: list val).
-
-Record action :=
-  { params: list (name * typ);
-    body: cmd }.
+| VUnit
+| VPair (v1 v2: val).
 
 Record rule :=
-  { rule_match: exp;
-    rule_action: name;
-    rule_args: list val }.
+  { rule_match: val;
+    rule_action: nat }.
 
 Record table :=
-  { table_key: exp;
-    table_acts: list name; }.
+  { table_key: exp; table_acts: list action }.
+
+Record def_state :=
+  { type_env: Env.t name typ;
+    tables: Env.t name table;
+    rules: Env.t name (list rule) }.
 
 Record state :=
   { store: Env.t name val;
-    type_env: Env.t name typ;
-    pkt: list bool;
-    acts: Env.t name action;
-    tables: Env.t name (table * list rule) }.
+    pkt: list bool }.

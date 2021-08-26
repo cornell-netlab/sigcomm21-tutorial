@@ -7,3 +7,4 @@ coq/CoqMakefile.conf
 coq/.CoqMakefile.d
 coq/extraction/*.ml
 coq/extraction/*.mli
+.lia.cache

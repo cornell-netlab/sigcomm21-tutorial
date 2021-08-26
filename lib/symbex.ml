@@ -12,10 +12,15 @@ type state =
 let mtu = 4
 
 let init_typ_env = 
-  let pkt_typ = Prod(Util.repeat (Bit(8)) mtu) in
+  let pkt_typ = 
+    let rec loop acc n = 
+      if n = 0 then acc
+      else loop (Prod(Bit(8), acc)) (n-1) in
+    loop Unit (mtu - 1) in
+
   let bindings = 
     [ (Smt.input_pkt, pkt_typ);
-      (Smt.output_pkt, Prod([])) ] in
+      (Smt.output_pkt, Unit) ] in
   Env.StringMap.of_seq (List.to_seq bindings)
 
 let init_state = 
@@ -38,8 +43,10 @@ let rec subst env (e:exp) : exp =
      e
   | Bits _ -> 
      e
-  | Tuple(es) -> Tuple(List.map (subst env) es)
-  | Proj(e,n) -> Proj(subst env e, n)
+  | Tt -> e
+  | Tuple(e1,e2) -> Tuple(subst env e1,subst env e2)
+  | Proj1(e) -> Proj1(subst env e)
+  | Proj2(e) -> Proj1(subst env e)
   | BinOp(o,e1,e2) -> BinOp(o,subst env e1, subst env e2)
   | UOp(o,e) -> UOp(o,subst env e)
 
@@ -48,12 +55,15 @@ let rec simplify (e:exp) : exp =
   | Var _ -> e
   | EBool _ -> e
   | Bits _ -> e
-  | Tuple(es) -> Tuple(List.map simplify es)
-  | Proj(Tuple(es),n) -> simplify (List.nth es (n-1))
-  | Proj(e,n) -> Proj(simplify e, n)
+  | Tt -> e
+  | Tuple(e1,e2) -> Tuple(simplify e1, simplify e2)
+  | Proj1(Tuple(e1,_)) -> simplify e1
+  | Proj1(e) -> Proj1(simplify e)                        
+  | Proj2(Tuple(_,e2)) -> simplify e2
+  | Proj2(e) -> Proj2(simplify e)                        
   | BinOp(o,e1,e2) -> BinOp(o, simplify e1, simplify e2)
   | UOp(o,e) -> UOp(o, simplify e)
-
+              
 let formula_of_exp (st:state) (e:exp) : Smt.formula =
   match Check.typ_of_exp st.typ_env e with
   | Bit(n) -> 
@@ -73,36 +83,38 @@ let rec find_table tbl defns =
   | _::defns' -> 
      find_table tbl defns'
 
-let rec find_action act defns = 
-  match defns with 
-  | [] -> 
-     failwith "Unexpected error: could not find action" 
-  | Action(act',params,body)::defns' -> 
-     if act = act' then
-       (params, body)
-     else 
-       find_action act defns'
-  | _::defns' -> 
-     find_action act defns'
-
-let rec interp_action (st:state) (act:name) : state list = 
-  let _,body = find_action act st.defns in 
-  interp_cmd st body
+let proj_input_pkt n = 
+  if n < 1 || n > mtu then 
+    failwith "Unexpected error: cannot project beyond MTU";
+  let rec loop acc i = 
+    if i = 1 then Proj1(acc)
+    else loop (Proj2(acc)) (i-1) in 
+  loop (Var(Smt.input_pkt)) n
+    
+let rec interp_action (st:state) (act:action) : state list = 
+  match act with 
+  | ActNop -> [st]
+  | ActSeq(act1, act2) -> 
+     List.concat_map 
+       (fun st1 -> interp_action st1 act2) 
+       (interp_action st act1)      
+  | ActAssign(x,exp) -> 
+     let sym_env = Env.StringMap.add x exp st.sym_env in 
+     let trace = Trace.Assign(x,exp)::st.trace in 
+     [ { st with sym_env; trace } ]
 
 and interp_cmd (st:state) (c:cmd) : state list = 
   match c with
-  | Assign(x,e) -> 
-     let sym_env = Env.StringMap.add x e st.sym_env in 
-     let trace = Trace.Assign(x,e)::st.trace in 
+  | Assign(x,exp) -> 
+     let sym_env = Env.StringMap.add x exp st.sym_env in 
+     let trace = Trace.Assign(x,exp)::st.trace in 
      [ { st with sym_env; trace } ]
-  | Block(cs) -> 
-     let rec loop acc cs = 
-       match cs with 
-       | [] -> acc
-       | c::cs' -> 
-          let acc' = List.concat_map (fun st -> interp_cmd st c) acc in 
-          loop acc' cs' in 
-     loop [st] cs
+  | Nop -> 
+     [st]
+  | Seq(c1,c2) -> 
+     List.concat_map 
+       (fun st1 -> interp_cmd st1 c2) 
+       (interp_cmd st c1) 
   | If(e,c_tru, c_fls) -> 
      let e_tru = formula_of_exp st e in
      let st_tru = { st with path_cond = Smt.And(st.path_cond, e_tru) } in
@@ -115,38 +127,19 @@ and interp_cmd (st:state) (c:cmd) : state list =
      List.concat_map (interp_action st) acts
   | Extr(x) ->
      let extract_cur = st.extract_cur + 1 in
-     let input_slice = Proj(Var(Smt.input_pkt), extract_cur) in
+     let input_slice = proj_input_pkt extract_cur in
      let sym_env = Env.StringMap.add x input_slice st.sym_env in
      let trace = Trace.Extract(x,input_slice)::st.trace in 
      [ { st with sym_env; extract_cur; trace } ]
   | Emit(x) -> 
      let emit_cur = st.emit_cur + 1 in
      let output_slice = Env.StringMap.find x st.sym_env in
-     let old_output_pkt = 
-       try 
-         match Env.StringMap.find Smt.output_pkt st.sym_env with 
-         | Tuple(es) -> es
-         | _ -> failwith "Unexpected error: output packet is not a tuple"
-       with Not_found -> 
-         [] in
-     let old_output_typ = 
-       match Env.StringMap.find Smt.output_pkt st.typ_env with 
-       | Prod(ts) -> ts
-       | _ -> failwith "Unexpected error: type of output packet is not a product" in     
-     let sym_env = Env.StringMap.add Smt.output_pkt (Tuple(old_output_pkt @ [output_slice])) st.sym_env in
-     let typ_env = Env.StringMap.add Smt.output_pkt (Prod(old_output_typ @ [Bit(8)])) st.typ_env in
+     let old_output_pkt = Env.StringMap.find Smt.output_pkt st.sym_env in 
+     let old_output_typ = Env.StringMap.find Smt.output_pkt st.typ_env in 
+     let sym_env = Env.StringMap.add Smt.output_pkt (Tuple(old_output_pkt, output_slice)) st.sym_env in
+     let typ_env = Env.StringMap.add Smt.output_pkt (Prod(old_output_typ, Bit(8))) st.typ_env in
      let trace = Trace.Emit(x,output_slice)::st.trace in
      [ { st with sym_env; typ_env; emit_cur; trace } ]
-  | Call(act,args) -> 
-     let params,body = find_action act st.defns in
-     let typ_env, sym_env = 
-       List.fold_left (fun (tenv,senv) ((x,typ),arg) -> 
-           (Env.StringMap.add x typ tenv,
-            Env.StringMap.add x arg senv))
-         (st.typ_env, st.sym_env)
-         (List.combine params args) in 
-     let st = { st with typ_env; sym_env } in
-     interp_cmd st body
 
 let interp_defn (st:state) (d:defn) : state = 
   match d with 
@@ -156,8 +149,6 @@ let interp_defn (st:state) (d:defn) : state =
      let defns = d::st.defns in
      { st with typ_env; sym_env; defns }
   | Table _ -> 
-     st
-  | Action _ -> 
      st
 
 let add_env_constraints state = 

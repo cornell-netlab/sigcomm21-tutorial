@@ -1,25 +1,32 @@
-open Coq_minip4.Syntax
+module Interp = Coq_minip4.Interp
+module Syntax = Coq_minip4.Syntax
 open Minip4
 
 let init_state = 
+  let open Syntax in
   { store = [];
-    type_env = [];
-    pkt = [];
-    acts = [];
-    tables = []; }
+    pkt = [] }
 
-let defns = [VarDecl(Bit(8), "x", Bits (Util.repeat false 8))]
+let init_def_state = 
+  let open Syntax in
+  { type_env = []; tables = []; rules = [] }
+  
 
-let cmd = Block 
-            [ Extr("x");
-              If(Var("x"), 
-                 Block[ Assign("x", Bits([false;true;false;true;false;true;false;true]));
-                        Emit("x");
-                        Assign("x", Bits(Util.repeat true 8));
-                        Emit("x")],
-                 Block[ Emit("x") ]) ]
+let defns = 
+  let open Syntax in 
+  [VarDecl(Bit(8), "x", Bits (Util.repeat false 8))]
 
-let prog = defns,cmd
+let cmd = 
+  let open Syntax in 
+  Seq(Extr("x"),
+      If(Var("x"), 
+         Seq(Assign("x", Bits([false;true;false;true;false;true;false;true])),
+             Seq(Emit("x"),
+                 Seq(Assign("x", Bits(Util.repeat true 8)),
+                     Emit("x")))),
+         Emit("x")))
+
+let prog = defns, cmd
 
 let fuel = 100
 
@@ -38,10 +45,10 @@ let symbex () =
   List.iter go states 
 
 let interp () = 
-  Format.printf "*** Welcome to MiniP4 ***\n%!";
-  Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.pkt);
-  match Coq_minip4.Interp.interp_prog fuel init_state prog with 
-  | None -> 
+   Format.printf "*** Welcome to MiniP4 ***\n%!";
+   Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.pkt);
+   match Interp.interp_prog fuel init_def_state init_state prog with 
+   | None -> 
      Format.printf "[Error]"
   | Some state -> 
      Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.pkt)

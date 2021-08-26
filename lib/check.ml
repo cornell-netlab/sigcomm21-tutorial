@@ -11,13 +11,24 @@ let rec typ_of_exp (typ_env:typ Env.StringMap.t) (e:exp) : typ =
      end
   | EBool(_) -> Bool
   | Bits(bs) -> Bit (List.length bs)
-  | Tuple(es) -> Prod(List.map (typ_of_exp typ_env) es)
-  | Proj(e,n) -> 
+  | Tuple(e1,e2) -> 
+     let typ1 = typ_of_exp typ_env e1 in
+     let typ2 = typ_of_exp typ_env e2 in
+     Prod(typ1, typ2)
+  | Proj1(e) -> 
      begin 
        match typ_of_exp typ_env e with 
-       | Prod(ts) -> List.nth ts (n - 1)
+       | Prod(typ1,_) -> typ1
        | _ -> failwith "Unexpected typ for projection"
      end
+  | Proj2(e) -> 
+     begin 
+       match typ_of_exp typ_env e with 
+       | Prod(_,typ2) -> typ2
+       | _ -> failwith "Unexpected typ for projection"
+     end
+  | Tt -> 
+     Unit
   | BinOp(_, t1, t2) -> 
      let typ1 = typ_of_exp typ_env t1 in
      let typ2 = typ_of_exp typ_env t2 in

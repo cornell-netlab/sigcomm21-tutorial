@@ -24,20 +24,24 @@ let rec z3_of_typ : typ -> Z3.Sort.sort =
      Z3.Boolean.mk_sort ctx
   | Bit n -> 
      Z3.BitVector.mk_sort ctx n 
-  | Prod(ts) -> 
+  | Prod(t1,t2) -> 
      begin 
        try
-         Hashtbl.find prod_hash ts
+         Hashtbl.find prod_hash (t1,t2)
        with Not_found ->
          let () = incr prod_ctr in
-         let sorts = List.map z3_of_typ ts in
+         let sort1 = z3_of_typ t1 in
+         let sort2 = z3_of_typ t1 in
          let tuple_sym = Z3.Symbol.mk_string ctx (mk_tuple !prod_ctr) in
-         let fields_syms = List.mapi (fun i _ -> Z3.Symbol.mk_string ctx (mk_field !prod_ctr i)) ts in
-         let sort = Z3.Tuple.mk_sort ctx tuple_sym fields_syms sorts in
-         let () = Hashtbl.add prod_hash ts sort in
+         let field1 = Z3.Symbol.mk_string ctx (mk_field !prod_ctr 1) in 
+         let field2 = Z3.Symbol.mk_string ctx (mk_field !prod_ctr 2) in 
+         let sort = Z3.Tuple.mk_sort ctx tuple_sym [field1;field2] [sort1;sort2] in
+         let () = Hashtbl.add prod_hash (t1,t2) sort in
          sort
      end   
-
+  | Unit -> 
+     failwith "unimplemented"
+    
 let z3_mk_constr t = 
   let sort = z3_of_typ t in
   let func = Z3.Tuple.get_mk_decl sort in
@@ -79,15 +83,20 @@ let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr =
      let res = Z3.BitVector.mk_numeral ctx str length in
      assert (extract_byte res = bs);
      res
-
-  | Tuple(es) -> 
+  | Tuple(e1,e2) -> 
      let t = Check.typ_of_exp typ_env e in
      let constr = z3_mk_constr t in
-     constr (List.map (z3_of_term typ_env) es)
-  | Proj(e,n) -> 
+     constr (List.map (z3_of_term typ_env) [e1;e2])
+  | Proj1(e) -> 
      let t = Check.typ_of_exp typ_env e in
      let proj = z3_mk_proj t in
-     proj (z3_of_term typ_env e) n
+     proj (z3_of_term typ_env e) 1
+  | Proj2(e) -> 
+     let t = Check.typ_of_exp typ_env e in
+     let proj = z3_mk_proj t in
+     proj (z3_of_term typ_env e) 2
+  | Tt -> 
+     failwith "unimplemented"
   | BinOp(Eq, e1, e2) -> 
      Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2)
   | BinOp(Neq, e1, e2) ->
@@ -135,20 +144,17 @@ let extract_value (typ_env:typ Env.StringMap.t) (model:model) (x:name) : exp =
          | "false" -> EBool(false)                  
          | _ -> failwith "Unexpected error: model value is not a boolean"
        end
-    | Prod(ts) -> 
-       let proj = z3_mk_proj t in 
-       let rec loop acc ts i = 
-         match ts with 
-         | [] -> 
-            List.rev acc
-         | ti::ts' -> 
-            let ei = Z3.Model.eval model (proj e i) true |> Option.get in 
-            let vi = aux ei ti in
-            loop (vi::acc) ts' (i+1) in
-       Tuple(loop [] ts 1) in 
+    | Prod(t1,t2) -> 
+       let proj = z3_mk_proj t in        
+       let e1 = Z3.Model.eval model (proj e 1) true |> Option.get in
+       let v1 = aux e1 t1 in
+       let e2 = Z3.Model.eval model (proj e 2) true |> Option.get in
+       let v2 = aux e2 t2 in
+       Tuple(v1,v2) 
+    | Unit -> 
+       Tt in
   aux e t
   
-
 let check (typ_env:typ Env.StringMap.t) (p:formula) : model option =
   let solver = Z3.Solver.mk_simple_solver ctx in
   Z3.Solver.add solver [ z3_of_formula typ_env p ];
