@@ -633,6 +633,34 @@ Proof.
         simpl in *.
         eapply agree_union_all; eauto with datatypes.
       * congruence.
+  - destruct n; simpl in *; try congruence.
+    inversion H; subst.
+    exists s2.
+    replace (interp_exp s2 e) with (interp_exp s1 e)
+      by eauto using dse_exp_corr, agree_union_l.
+    destruct (interp_exp s1 e); simpl in *; try congruence.
+    destruct (val_eq_dec v (VBits [true])).
+    + unfold Equivalence.equiv in *.
+      subst.
+      inversion H0.
+      subst.
+      intuition.
+      eauto using agree_union_r.
+    + destruct v as [ [ | [ | ] [ | ] ]| | | ]; congruence.
+  - destruct n; simpl in *; try congruence.
+    inversion H; subst.
+    exists s2.
+    replace (interp_exp s2 e) with (interp_exp s1 e)
+      by eauto using dse_exp_corr, agree_union_l.
+    destruct (interp_exp s1 e); simpl in *; try congruence.
+    destruct (val_eq_dec v (VBits [true])).
+    + unfold Equivalence.equiv in *.
+      subst.
+      inversion H0.
+      subst.
+      intuition.
+      eauto using agree_union_r.
+    + destruct v as [ [ | [ | ] [ | ] ]| | | ]; congruence.
 Qed.
 
 Print Assumptions dse_cmd_corr.

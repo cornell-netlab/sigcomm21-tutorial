@@ -262,6 +262,14 @@ Fixpoint interp_cmd (fuel: nat) (d: def_state) (s: state) (c: cmd) : option stat
       | None =>
         None
       end
+    | Assume e
+    | Assert e =>
+      match interp_exp s e with
+      | Some (VBits [true]) =>
+        Some s
+      | Some _ => None
+      | None => None
+      end
     | Extr x => 
       match Env.find x d.(type_env) with
       | Some t => interp_extr s x t

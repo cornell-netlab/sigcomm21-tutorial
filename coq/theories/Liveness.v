@@ -72,6 +72,9 @@ Fixpoint dead_store_elim
     let (live1, c1) := dead_store_elim tables live c1 in
     let (live2, c2) := dead_store_elim tables live c2 in
     (union_all [fv e; live1; live2], If e c1 c2)
+  | Assert e
+  | Assume e =>
+    (union (fv e) live, c)
   | Extr x =>
     (drop x live, c)
   | Emit x =>
