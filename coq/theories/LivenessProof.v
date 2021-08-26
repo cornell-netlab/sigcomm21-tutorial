@@ -7,13 +7,6 @@ Require Import MiniP4.Interp.
 Open Scope string_scope.
 Open Scope list_scope.
 
-Lemma check_union_false:
-  forall x a b,
-    check x (union a b) = false ->
-    check x a = false /\ check x b = false.
-Proof.
-Admitted.
-
 Definition agree (s: varset) (s1 s2: Env.t name val) : Prop :=
   Forall (fun x => Env.find x s1 = Env.find x s2) s.
 
@@ -110,21 +103,6 @@ Proof.
   apply check_cons_neq.
   tauto.
 Qed.
-
-Lemma union_emp_l:
-  forall s,
-    union emp s = s.
-Proof.
-  (* Not actually true, needs hypothesis about duplicates in s *)
-Admitted.
-
-Lemma interp_cmd_fuel:
-  forall m n ds s c v,
-    m >= n ->
-    interp_cmd n ds s c = Some v ->
-    interp_cmd m ds s c = Some v.
-Proof.
-Admitted.
 
 Lemma interp_extr_assign:
   forall s x v t,
