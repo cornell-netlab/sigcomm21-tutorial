@@ -92,3 +92,12 @@ Eval compute in dead_store_elim [] [] (Assign "x" (Bits [true])).
 Eval compute in dead_store_elim [] [] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "x"))).
 Eval compute in dead_store_elim [] ["x"; "y"] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "x"))).
 Eval compute in dead_store_elim [] ["x"; "y"] (Seq (Assign "x" (Bits [true])) (Assign "x" (Var "y"))).
+
+ 
+Require Import Examples.ACL.
+Definition acl_tables: Env.t name Syntax.table :=
+  [("route", {| table_key := (Proj1 (Var "ip")); table_acts := [set_out0; set_out1] |});
+   ("acl", {| table_key := (Var "ip"); table_acts := [act_drop; ActNop] |})].
+
+Eval compute in (dead_store_elim acl_tables emp acl_cmd).
+Eval compute in (dead_store_elim acl_tables emp (Seq (Assign "ip" (Tuple (zeros 8) (zeros 8))) acl_cmd)).
