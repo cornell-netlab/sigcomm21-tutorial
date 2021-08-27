@@ -4,8 +4,6 @@
 theories/Syntax.v
 theories/Interp.v
 theories/Env.v
-theories/Lattice.v
-theories/Dataflow.v
 theories/Liveness.v
 theories/LivenessProof.v
 
