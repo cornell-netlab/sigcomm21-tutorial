@@ -8,25 +8,22 @@ type t =
   | Extract of name * exp
   | Emit of name * exp
   | Assign of name * exp
-  | Table of name
-  | Action of name
+  | TableAction of name * int
 
 let format_t (t:t) : 'a Pp.t = 
   match t with 
   | Input(e) -> 
-     verbatim "[ Input   ] " ++ Printer.format_exp e
+     verbatim "[ Input       ] " ++ Printer.format_exp e
   | Output(e) -> 
-     verbatim "[ Output  ] " ++ Printer.format_exp e
+     verbatim "[ Output      ] " ++ Printer.format_exp e
   | Extract(x,e) -> 
-     verbatim "[ Extract ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
+     verbatim "[ Extract     ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
   | Emit(x,e) -> 
-     verbatim "[ Emit    ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
+     verbatim "[ Emit        ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
   | Assign(x,e) -> 
-     verbatim "[ Assign  ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
-  | Table(x) ->
-     verbatim "[ Table   ] " ++ verbatim x
-  | Action(x) -> 
-     verbatim "[ Action  ] " ++ verbatim x
+     verbatim "[ Assign      ] " ++ verbatim x ++ verbatim " = " ++ Printer.format_exp e
+  | TableAction(x,n) ->
+     verbatim "[ TableAction ] " ++ verbatim x ++ text "." ++ Printer.format_int n
 
 let map_exp f t = 
   match t with
@@ -35,5 +32,4 @@ let map_exp f t =
   | Extract(x,e) -> Extract(x,f e)  
   | Emit(x,e) -> Emit(x,f e)
   | Assign(x,e) -> Assign(x, f e)
-  | Table _ -> t
-  | Action _ -> t
+  | TableAction _ -> t

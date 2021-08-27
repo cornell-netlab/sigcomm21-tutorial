@@ -6,8 +6,7 @@ type t =
   | Extract of name * exp
   | Emit of name * exp
   | Assign of name * exp
-  | Table of name
-  | Action of name
+  | TableAction of name * int
 
 val map_exp : (exp -> exp) -> t -> t
 

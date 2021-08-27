@@ -71,19 +71,23 @@ let proj_input_pkt n =
   let rec loop acc i = 
     if i = 1 then Proj1(acc)
     else loop (Proj2(acc)) (i-1) in 
-  loop (Var(Smt.input_pkt)) n
+  loop (Var(Smt.input_pkt)) n  
     
-let rec interp_action (st:state) (act:action) : state list = 
+let rec interp_action_body (st:state) (act:action) : state = 
   match act with 
-  | ActNop -> [st]
-  | ActSeq(act1, act2) -> 
-     List.concat_map 
-       (fun st1 -> interp_action st1 act2) 
-       (interp_action st act1)      
-  | ActAssign(x,exp) -> 
+  | ActNop ->
+     st
+  | ActSeq(act1, act2) ->
+     interp_action_body (interp_action_body st act1) act2
+  | ActAssign(x,exp) ->
      let sym_env = Env.add x exp st.sym_env in 
      let trace = Trace.Assign(x,exp)::st.trace in 
-     [ { st with sym_env; trace } ]
+     { st with sym_env; trace }
+
+and interp_action (st:state) (tbl:name) (n:int) (act:action) : state = 
+  let trace = Trace.TableAction(tbl,n)::st.trace in
+  let st = { st with trace } in 
+  interp_action_body st act
 
 and interp_cmd (st:state) (c:cmd) : state list = 
   match c with
@@ -115,7 +119,7 @@ and interp_cmd (st:state) (c:cmd) : state list =
      interp_cmd st_fls c_fls
   | Apply(tbl) ->
      let _,acts = find_table tbl st.defns in
-     List.concat_map (interp_action st) acts
+     List.mapi (interp_action st tbl) acts
   | Extr(x) ->
      let extract_cur = st.extract_cur + 1 in
      let input_slice = proj_input_pkt extract_cur in

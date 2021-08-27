@@ -217,9 +217,9 @@ let extract_value (typ_env:typ Env.StringMap.t) (model:model) (x:name) : exp =
     | Bool -> 
        begin 
          match Z3.Expr.to_string e with
-         | "true" -> EBool(true)
-         | "false" -> EBool(false)                  
-         | _ -> failwith "Unexpected error: model value is not a boolean"
+         | "#b1" -> EBool(true)
+         | "#b0" -> EBool(false)                  
+         | s -> failwith ("Unexpected error: model value " ^ s ^ " is not a boolean")
        end
     | Prod(t1,t2) -> 
        let proj = z3_mk_proj t in        
