@@ -35,7 +35,7 @@ let rec subst env (e:exp) : exp =
   | Tt -> e
   | Tuple(e1,e2) -> Tuple(subst env e1,subst env e2)
   | Proj1(e) -> Proj1(subst env e)
-  | Proj2(e) -> Proj1(subst env e)
+  | Proj2(e) -> Proj2(subst env e)
   | BinOp(o,e1,e2) -> BinOp(o,subst env e1, subst env e2)
   | UOp(o,e) -> UOp(o,subst env e)
 
@@ -45,11 +45,18 @@ let rec simplify (e:exp) : exp =
   | EBool _ -> e
   | Bits _ -> e
   | Tt -> e
-  | Tuple(e1,e2) -> Tuple(simplify e1, simplify e2)
-  | Proj1(Tuple(e1,_)) -> simplify e1
-  | Proj1(e) -> Proj1(simplify e)                        
-  | Proj2(Tuple(_,e2)) -> simplify e2
-  | Proj2(e) -> Proj2(simplify e)                        
+  | Tuple(e1,e2) -> 
+     Tuple(simplify e1, simplify e2)
+  | Proj1(e) -> 
+     begin match simplify e with 
+     | Tuple(e1',_) -> e1'
+     | e' -> Proj1(e')
+     end
+  | Proj2(e) -> 
+     begin match simplify e with 
+     | Tuple(_,e2') -> e2'
+     | e' -> Proj2(e')
+     end
   | BinOp(o,e1,e2) -> BinOp(o, simplify e1, simplify e2)
   | UOp(o,e) -> UOp(o, simplify e)
               
