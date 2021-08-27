@@ -1,0 +1,19 @@
+opam-version: "2.0"
+version: "0.0.1"
+synopsis: "Minip4"
+maintainer: "jnfoster@cs.cornell.edu"
+authors: ["Nate Foster <jnfoster@cs.cornell.edu>"
+          "Ryan Doenges <rhd89@cornell.edu>"]
+homepage: "https://github.com/cornell-netlab/sigcomm21-tutorial"
+dev-repo: "git+https://github.com/cornell-netlab/sigcomm21-tutorial"
+bug-reports: "https://github.com/cornell-netlab/sigcomm21-tutorial/issues"
+license: "MIT"
+build: [
+  ["dune" "subst"] {pinned}
+  [make]
+]
+depends: [
+  "z3"
+  "pp"
+  "coq"
+]
