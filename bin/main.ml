@@ -29,14 +29,14 @@ let cmd =
          Seq(Assign("x", Bits([false;true;false;true;false;true;false;true])),
              Seq(Emit("x"),
                  Seq(Assign("x", Bits(Util.repeat true 8)),
-                     Seq(Emit("x"), Emit("x"))))),
+                     Emit("x")))),
          Emit("x")))
 
 let _ = ignore(cmd)
 
-let cmd = 
-  let open Syntax in 
-  Seq(Extr("x"), Assert(Var("x")))
+(* let cmd = 
+ *   let open Syntax in 
+ *   Seq(Extr("x"), Assert(Var("x"))) *)
 
 let prog = defns, cmd
 
@@ -46,6 +46,7 @@ let symbex () =
   let states = Symbex.interp_prog prog in
   let go (state:Symbex.state) : unit = 
     Format.printf "\n====================\n";
+    Format.printf "Path Condition: %a\n%!" Pp.to_fmt (Smt.format_formula state.path_cond);
     match Smt.check state.typ_env state.path_cond with 
     | None -> 
        ()
@@ -74,4 +75,4 @@ let vcgen () =
   
 let () = 
    Format.printf "*** Welcome to MiniP4 ***\n%!";
-   vcgen ()
+   symbex ()

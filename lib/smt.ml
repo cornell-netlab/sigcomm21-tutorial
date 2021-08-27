@@ -185,7 +185,7 @@ let init_typ_env =
     let rec loop acc n = 
       if n = 0 then acc
       else loop (Util.mk_concat_typ (Bit(8)) acc) (n-1) in
-    loop Unit (mtu - 1) in
+    loop Unit mtu in
 
   let bindings =
     [ (input_pkt, pkt_typ);

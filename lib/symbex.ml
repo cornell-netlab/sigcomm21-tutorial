@@ -94,20 +94,20 @@ and interp_cmd (st:state) (c:cmd) : state list =
        (fun st1 -> interp_cmd st1 c2) 
        (interp_cmd st c1) 
   | Assign(x,exp) -> 
-     let sym_env = Env.add x exp st.sym_env in 
+     let sym_env = Env.add x (subst st.sym_env exp) st.sym_env in
      let trace = Trace.Assign(x,exp)::st.trace in 
      [ { st with sym_env; trace } ]
   | Assert(e) ->
      let typ = Check.typ_of_exp st.typ_env e in
-     let e_tru = Smt.formula_of_exp typ e in 
+     let e_tru = Smt.formula_of_exp typ (subst st.sym_env e) in 
      [ { st with path_cond = Smt.And(st.path_cond, e_tru) }]
   | Assume(e) ->
      let typ = Check.typ_of_exp st.typ_env e in
-     let e_tru = Smt.formula_of_exp typ e in 
+     let e_tru = Smt.formula_of_exp typ (subst st.sym_env e) in 
      [ { st with path_cond = Smt.And(st.path_cond, e_tru) }]
   | If(e,c_tru, c_fls) -> 
      let typ = Check.typ_of_exp st.typ_env e in
-     let e_tru = Smt.formula_of_exp typ e in
+     let e_tru = Smt.formula_of_exp typ (subst st.sym_env e) in
      let st_tru = { st with path_cond = Smt.And(st.path_cond, e_tru) } in
      let e_fls = Smt.Not(e_tru) in 
      let st_fls = { st with path_cond = Smt.And(st.path_cond, e_fls) } in
