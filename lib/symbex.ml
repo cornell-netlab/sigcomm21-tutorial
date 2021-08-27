@@ -56,7 +56,7 @@ let rec simplify (e:exp) : exp =
 let rec find_table tbl defns = 
   match defns with 
   | [] -> 
-     failwith "Unexpected error: could not find table" 
+     failwith ("Unexpected error: could not find table " ^ tbl)
   | Table(tbl',keys,acts)::defns' -> 
      if tbl = tbl' then 
        (keys,acts)
@@ -137,10 +137,11 @@ let interp_defn (st:state) (d:defn) : state =
   | VarDecl(typ,x,exp) ->
      let typ_env = Env.add x typ st.typ_env in
      let sym_env = Env.add x exp st.sym_env in
-     let defns = d::st.defns in
+     let defns = st.defns @ [d] in
      { st with typ_env; sym_env; defns }
   | Table _ -> 
-     st
+     let defns = st.defns @ [d] in 
+     { st with defns }
 
 let add_env_constraints state = 
   let cond = Env.fold (fun x e acc -> Smt.And(acc, Smt.Eq(Var(x), e))) state.sym_env state.path_cond in

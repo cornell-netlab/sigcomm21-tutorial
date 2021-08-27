@@ -42,7 +42,7 @@ let rec vcgen_cmd (st:state) (c:cmd) : state =
   | Extr(x) -> 
      let cmd = 
        Seq(Assign(x,Proj1(Var(Smt.input_pkt))),
-           Assign(Smt.input_pkt, Proj2(Var(Smt.input_pkt)))) in 
+           Assign(Smt.input_pkt, Proj2(Var(Smt.input_pkt)))) in
      vcgen_cmd st cmd
   | Emit(x) -> 
      let cmd = Assign(Smt.output_pkt, Tuple(Var(Smt.output_pkt), Var(x))) in 
@@ -67,9 +67,11 @@ let vcgen_defn st d =
   match d with 
   | VarDecl(typ,x,_) ->
      let typ_env = Env.StringMap.add x typ st.typ_env in 
-     { st with typ_env }
+     let defns = st.defns @ [d] in
+     { st with defns; typ_env }
   | Table _ -> 
-     st
+     let defns = st.defns @ [d] in
+     { st with defns }
 
 let vcgen_prog p = 
   let defns,main = p in 

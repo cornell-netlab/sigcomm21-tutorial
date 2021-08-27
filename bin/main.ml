@@ -6,43 +6,29 @@ module Trace = Minip4.Trace
 module Printer = Minip4.Printer
 module Vcgen = Minip4.Vcgen
 module Symbex = Minip4.Symbex
+module Examples = Minip4.Examples
 
 let init_state = 
   let open Syntax in
   { store = [];
-    in_pkt = [];
+    in_pkt = Util.repeat true 8 @ Util.repeat false 24;
     out_pkt = [] }
 
 let init_def_state = 
   let open Syntax in
   { type_env = []; tables = []; rules = [] }
   
+let fuel = 1000
 
-let defns = 
-  let open Syntax in 
-  [VarDecl(Bit(8), "x", Bits (Util.repeat false 8))]
+let interp prog rules = 
+   Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.in_pkt);
+   match Interp.interp_prog fuel { init_def_state with rules } init_state prog with
+   | None -> 
+     Format.printf "[Error]"
+  | Some state -> 
+     Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.out_pkt)
 
-let cmd = 
-  let open Syntax in 
-  Seq(Extr("x"),
-      If(Var("x"), 
-         Seq(Assign("x", Bits([false;true;false;true;false;true;false;true])),
-             Seq(Emit("x"),
-                 Seq(Assign("x", Bits(Util.repeat true 8)),
-                     Emit("x")))),
-         Emit("x")))
-
-let _ = ignore(cmd)
-
-(* let cmd = 
- *   let open Syntax in 
- *   Seq(Extr("x"), Assert(Var("x"))) *)
-
-let prog = defns, cmd
-
-let fuel = 100
-
-let symbex () = 
+let symbex prog = 
   let states = Symbex.interp_prog prog in
   let go (state:Symbex.state) : unit = 
     Format.printf "\n====================\n";
@@ -56,15 +42,7 @@ let symbex () =
        List.iter (fun t -> Format.printf "%a\n" Pp.to_fmt (Trace.format_t t)) trace in 
   List.iter go states 
 
-let interp () = 
-   Format.printf "Initial Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring init_state.in_pkt);
-   match Interp.interp_prog fuel init_def_state init_state prog with 
-   | None -> 
-     Format.printf "[Error]"
-  | Some state -> 
-     Format.printf "Final Packet: %a\n%!" Pp.to_fmt (Printer.format_bitstring state.out_pkt)
-
-let vcgen () = 
+let vcgen prog = 
   let state = Vcgen.vcgen_prog prog in
   match Smt.check state.typ_env (Smt.Not(state.cond)) with
   | None -> 
@@ -75,4 +53,4 @@ let vcgen () =
   
 let () = 
    Format.printf "*** Welcome to MiniP4 ***\n%!";
-   symbex ()
+   symbex Examples.ACL.prog

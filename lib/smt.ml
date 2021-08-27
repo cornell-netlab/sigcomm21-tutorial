@@ -62,10 +62,9 @@ let mk_tuple n = Printf.sprintf "tuple_%d" n
 let mk_field n i = Printf.sprintf "field_%d_%d" n i   
 
 let rec z3_of_typ : typ -> Z3.Sort.sort = 
-  (* Hash-cons tuple types *) 
   function
   | Bool -> 
-     Z3.Boolean.mk_sort ctx
+     Z3.BitVector.mk_sort ctx 1
   | Bit n -> 
      Z3.BitVector.mk_sort ctx n 
   | Prod(t1,t2) -> 
@@ -115,16 +114,26 @@ let z3_of_var typ_env x =
        with Not_found ->
          failwith "Unexpected error: unbound variable" in
      let sort = z3_of_typ typ in
-     Z3.Expr.mk_const_s ctx x sort
+     let sym = Z3.Symbol.mk_string ctx x in
+     Z3.Expr.mk_const ctx sym sort
+
+let z3_term_true = 
+  Z3.BitVector.mk_numeral ctx "1" 1
+
+let z3_term_false = 
+  Z3.BitVector.mk_numeral ctx "0" 1
+
+let z3_bool_term e = 
+  Z3.Boolean.mk_ite ctx e z3_term_true z3_term_false
 
 let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr = 
   let res = match e with 
-  | Var(x) -> 
+  | Var(x) ->
      z3_of_var typ_env x
   | EBool(true) -> 
-     Z3.Boolean.mk_true ctx
+     z3_term_true
   | EBool(false) -> 
-     Z3.Boolean.mk_true ctx
+     z3_term_false
   | Bits(bs) -> 
      let length = List.length bs in
      let str = Util.intstring_of_bits bs in
@@ -147,10 +156,10 @@ let rec z3_of_term (typ_env:typ Env.StringMap.t) (e:exp) : Z3.Expr.expr =
      let constr = z3_mk_constr Unit in
      constr [] 
   | BinOp(Eq, e1, e2) -> 
-     Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2)
+     z3_bool_term (Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2))
   | BinOp(Neq, e1, e2) ->
-     Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2) |> 
-       Z3.Boolean.mk_not ctx      
+     z3_bool_term (Z3.Boolean.mk_eq ctx (z3_of_term typ_env e1) (z3_of_term typ_env e2) |> 
+       Z3.Boolean.mk_not ctx)
   | UOp(Hash, _) -> 
      assert false
   | UOp(Sum, _) -> 
@@ -176,6 +185,7 @@ let rec z3_of_formula typ_env (p:formula) =
      Z3.Boolean.mk_eq ctx (z3_of_term typ_env t1) (z3_of_term typ_env t2) |> Z3.Boolean.mk_not ctx 
 
 let input_pkt = "$input"
+let cursor = "$cursor"
 let output_pkt = "$output"
 
 let mtu = 4

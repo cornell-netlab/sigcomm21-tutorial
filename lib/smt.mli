@@ -18,6 +18,7 @@ val subst_formula : name -> term -> formula -> formula
 val formula_of_exp : typ -> exp -> formula
 
 val input_pkt : name
+val cursor: name
 val output_pkt : name
 val mtu : int
 val init_typ_env : typ Env.StringMap.t
